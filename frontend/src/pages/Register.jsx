@@ -1,45 +1,45 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../api/axios";
+import toast from "react-hot-toast";
 
 export default function Register() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
   const navigate = useNavigate();
 
-  const handleSubmit = async (e) => {
+  const handleRegister = async (e) => {
     e.preventDefault();
+    setError(null);
 
     if (!name || !email || !password || !confirmPassword) {
       setError("All fields are required");
       return;
     }
+
     if (password !== confirmPassword) {
       setError("Passwords do not match");
       return;
     }
 
-    setError("");
-    setLoading(true);
-
     try {
+      setLoading(true);
       const res = await api.post("/api/auth/register", { name, email, password });
 
-      // Save token and user info, redirect to dashboard
+      // Store JWT token and user info
       localStorage.setItem("token", res.data.token);
-      localStorage.setItem(
-        "user",
-        JSON.stringify({ id: res.data.id, name: res.data.name, email: res.data.email })
-      );
+      localStorage.setItem("user", JSON.stringify(res.data.user));
 
-      navigate("/dashboard");
+      toast.success("Registration successful!");
+      navigate("/dashboard"); // Redirect to combined Dashboard
     } catch (err) {
       console.error("REGISTER ERROR:", err);
       setError(err.response?.data?.message || "Registration failed");
+      toast.error(err.response?.data?.message || "Registration failed");
     } finally {
       setLoading(false);
     }
@@ -52,17 +52,55 @@ export default function Register() {
           Create Account
         </h2>
 
-        {error && <p className="text-red-500 text-sm text-center mb-4">{error}</p>}
+        {error && <p className="text-red-600 mb-4 text-center">{error}</p>}
 
-        <form className="space-y-4" onSubmit={handleSubmit}>
-          <input type="text" placeholder="Full Name" value={name} onChange={(e) => setName(e.target.value)} className="w-full border p-3 rounded-md"/>
-          <input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full border p-3 rounded-md"/>
-          <input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full border p-3 rounded-md"/>
-          <input type="password" placeholder="Confirm Password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className="w-full border p-3 rounded-md"/>
-          <button type="submit" disabled={loading} className="w-full bg-primary text-white py-3 rounded-md disabled:opacity-50">
+        <form className="space-y-4" onSubmit={handleRegister}>
+          <input
+            type="text"
+            placeholder="Name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className="w-full border p-3 rounded-md"
+          />
+          <input
+            type="email"
+            placeholder="Email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="w-full border p-3 rounded-md"
+          />
+          <input
+            type="password"
+            placeholder="Password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="w-full border p-3 rounded-md"
+          />
+          <input
+            type="password"
+            placeholder="Confirm Password"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            className="w-full border p-3 rounded-md"
+          />
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-primary text-white py-3 rounded-md disabled:opacity-50"
+          >
             {loading ? "Registering..." : "Register"}
           </button>
         </form>
+
+        <p className="mt-4 text-center text-sm">
+          Already have an account?{" "}
+          <span
+            className="text-primary cursor-pointer"
+            onClick={() => navigate("/login")}
+          >
+            Login
+          </span>
+        </p>
       </div>
     </div>
   );

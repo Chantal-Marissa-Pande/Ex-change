@@ -4,9 +4,8 @@ import { Toaster } from "react-hot-toast";
 import Landing from "./pages/Landing.jsx";
 import Login from "./pages/Login.jsx";
 import Register from "./pages/Register.jsx";
-import Dashboard from "./pages/Dashboard.jsx";
+import Dashboard from "./pages/Dashboard.jsx"; // Updated import
 import Skills from "./pages/Skills.jsx";
-import UserDashboard from "./pages/UserDashboard.jsx";
 import SkillDetail from "./pages/SkillDetail.jsx";
 
 export default function App() {
@@ -38,25 +37,10 @@ export default function App() {
             </ProtectedRoute>
           }
         />
-        <Route
-          path="/userdashboard"
-          element={
-            <ProtectedRoute>
-              <UserDashboard token={token} />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/skills/:skillId"
-          element={
-            <ProtectedRoute>
-              <SkillDetail token={token} />
-            </ProtectedRoute>
-          }
-        />
 
         {/* Public Skills page (view all skills) */}
         <Route path="/skills" element={<Skills />} />
+        <Route path="/skills/:skillId" element={<SkillDetail token={token} />} />
 
         {/* Fallback route */}
         <Route path="*" element={<Navigate to="/" replace />} />

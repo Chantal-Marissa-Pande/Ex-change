@@ -1,45 +1,53 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import api from "../api/axios";
 
 export default function FeaturedSkills() {
+  const token = localStorage.getItem("token");
   const [skills, setSkills] = useState([]);
-  const navigate = useNavigate();
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
+    if (!token) {
+      setError("Not authenticated");
+      setLoading(false);
+      return;
+    }
+
     const fetchSkills = async () => {
       try {
-        const res = await api.get("/api/skills");
-        // Ensure res.data is an array
-        if (Array.isArray(res.data)) setSkills(res.data);
-        else setSkills([]);
+        setLoading(true);
+        const res = await api.get("/api/users/me", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        setSkills(res.data.skills || []);
       } catch (err) {
-        console.error("Failed to fetch skills:", err);
+        console.error("FETCH SKILLS ERROR:", err);
+        setError("Failed to load skills");
+      } finally {
+        setLoading(false);
       }
     };
+
     fetchSkills();
-  }, []);
+  }, [token]);
+
+  if (loading) return <p className="text-center p-4">Loading skills...</p>;
+  if (error) return <p className="text-center p-4 text-red-600">{error}</p>;
+
+  if (!skills.length)
+    return <p className="text-center p-4 text-gray-500">No skills listed yet.</p>;
 
   return (
-    <section className="py-16 bg-background px-8">
-      <h2 className="text-3xl font-bold text-primary mb-6 text-center">
-        Featured Skills
-      </h2>
-      <div className="grid md:grid-cols-3 gap-6">
-        {skills.map((skill) => (
-          <div
-            key={skill.id}
-            onClick={() => navigate(`/skills/${skill.id}`)}
-            className="bg-white p-6 rounded-xl shadow cursor-pointer hover:shadow-lg transition"
-          >
-            <h3 className="font-semibold text-lg">{skill.title}</h3>
-            <p className="text-sm text-gray-500">Offered by {skill.owner_name}</p>
-            <button className="mt-4 text-primary font-medium">
-              Request Exchange →
-            </button>
-          </div>
-        ))}
-      </div>
-    </section>
+    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+      {skills.map((skill, idx) => (
+        <div
+          key={idx}
+          className="bg-primary/10 text-primary font-medium py-2 px-4 rounded-lg text-center"
+        >
+          {skill}
+        </div>
+      ))}
+    </div>
   );
 }
