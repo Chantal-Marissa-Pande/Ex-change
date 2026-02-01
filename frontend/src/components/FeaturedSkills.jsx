@@ -10,12 +10,13 @@ export default function FeaturedSkills() {
     const fetchSkills = async () => {
       try {
         const res = await api.get("/api/skills");
-        setSkills(res.data);
+        // Ensure res.data is an array
+        if (Array.isArray(res.data)) setSkills(res.data);
+        else setSkills([]);
       } catch (err) {
         console.error("Failed to fetch skills:", err);
       }
     };
-
     fetchSkills();
   }, []);
 

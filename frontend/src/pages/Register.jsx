@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import api from "../api/axios"; // Make sure axios baseURL points to your backend
+import { useNavigate } from "react-router-dom";
+import api from "../api/axios";
 
 export default function Register() {
   const [name, setName] = useState("");
@@ -18,7 +18,6 @@ export default function Register() {
       setError("All fields are required");
       return;
     }
-
     if (password !== confirmPassword) {
       setError("Passwords do not match");
       return;
@@ -29,12 +28,17 @@ export default function Register() {
 
     try {
       const res = await api.post("/api/auth/register", { name, email, password });
-      console.log("Registered user:", res.data);
 
-      // Redirect to login page
-      navigate("/login");
+      // Save token and user info, redirect to dashboard
+      localStorage.setItem("token", res.data.token);
+      localStorage.setItem(
+        "user",
+        JSON.stringify({ id: res.data.id, name: res.data.name, email: res.data.email })
+      );
+
+      navigate("/dashboard");
     } catch (err) {
-      console.error(err);
+      console.error("REGISTER ERROR:", err);
       setError(err.response?.data?.message || "Registration failed");
     } finally {
       setLoading(false);
@@ -51,53 +55,14 @@ export default function Register() {
         {error && <p className="text-red-500 text-sm text-center mb-4">{error}</p>}
 
         <form className="space-y-4" onSubmit={handleSubmit}>
-          <input
-            type="text"
-            placeholder="Full Name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className="w-full border p-3 rounded-md"
-          />
-
-          <input
-            type="email"
-            placeholder="Email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="w-full border p-3 rounded-md"
-          />
-
-          <input
-            type="password"
-            placeholder="Password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="w-full border p-3 rounded-md"
-          />
-
-          <input
-            type="password"
-            placeholder="Confirm Password"
-            value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
-            className="w-full border p-3 rounded-md"
-          />
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-primary text-white py-3 rounded-md disabled:opacity-50"
-          >
+          <input type="text" placeholder="Full Name" value={name} onChange={(e) => setName(e.target.value)} className="w-full border p-3 rounded-md"/>
+          <input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full border p-3 rounded-md"/>
+          <input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full border p-3 rounded-md"/>
+          <input type="password" placeholder="Confirm Password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className="w-full border p-3 rounded-md"/>
+          <button type="submit" disabled={loading} className="w-full bg-primary text-white py-3 rounded-md disabled:opacity-50">
             {loading ? "Registering..." : "Register"}
           </button>
         </form>
-
-        <p className="text-sm text-center mt-4">
-          Already have an account?{" "}
-          <Link to="/login" className="text-primary font-semibold">
-            Login
-          </Link>
-        </p>
       </div>
     </div>
   );
