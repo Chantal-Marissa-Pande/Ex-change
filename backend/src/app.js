@@ -1,14 +1,25 @@
 const express = require("express");
 const cors = require("cors");
+require("dotenv").config();
+
 const app = express();
 
+// Middlewares
 app.use(cors());
 app.use(express.json());
 
-app.use("/api/auth", require("./routes/auth.routes"));
-app.use("/api/user", require("./routes/user.routes"));
-app.use("/api/skills", require("./routes/skill.routes"));
+// Routes
+const authRoutes = require("./routes/auth.routes");
+const userRoutes = require("./routes/user.routes");
+const skillRoutes = require("./routes/skill.routes");
 
-app.get("/", (req, res) => res.send("Community Exchange API running"));
+app.use("/api/auth", authRoutes);
+app.use("/api/user", userRoutes);
+app.use("/api/skill", skillRoutes);
+
+// Health check
+app.get("/", (req, res) => {
+  res.send("API is running");
+});
 
 module.exports = app;
