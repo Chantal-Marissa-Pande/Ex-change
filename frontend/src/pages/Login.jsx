@@ -23,12 +23,11 @@ export default function Login() {
       setLoading(true);
       const res = await api.post("/api/auth/login", { email, password });
 
-      // Store JWT token and user info
       localStorage.setItem("token", res.data.token);
       localStorage.setItem("user", JSON.stringify(res.data.user));
 
       toast.success("Login successful!");
-      navigate("/dashboard"); // Redirect to combined Dashboard
+      navigate("/dashboard");
     } catch (err) {
       console.error("LOGIN ERROR:", err);
       setError(err.response?.data?.message || "Login failed");

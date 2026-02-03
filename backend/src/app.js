@@ -12,7 +12,9 @@ app.use(express.json());
 const authRoutes = require("./routes/auth.routes");
 const userRoutes = require("./routes/user.routes");
 const skillRoutes = require("./routes/skill.routes");
+const exchangeRoutes = require("./routes/exchange.routes");
 
+app.use("/api/exchange", exchangeRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/user", userRoutes);
 app.use("/api/skill", skillRoutes);

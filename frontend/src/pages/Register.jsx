@@ -29,13 +29,8 @@ export default function Register() {
     try {
       setLoading(true);
       const res = await api.post("/api/auth/register", { name, email, password });
-
-      // Store JWT token and user info
-      localStorage.setItem("token", res.data.token);
-      localStorage.setItem("user", JSON.stringify(res.data.user));
-
       toast.success("Registration successful!");
-      navigate("/dashboard"); // Redirect to combined Dashboard
+      navigate("/dashboard");
     } catch (err) {
       console.error("REGISTER ERROR:", err);
       setError(err.response?.data?.message || "Registration failed");
@@ -49,7 +44,7 @@ export default function Register() {
     <div className="min-h-screen flex items-center justify-center bg-background">
       <div className="bg-white p-8 rounded-xl shadow-md w-full max-w-md">
         <h2 className="text-2xl font-bold text-primary mb-6 text-center">
-          Create Account
+          Create an Account
         </h2>
 
         {error && <p className="text-red-600 mb-4 text-center">{error}</p>}
@@ -57,7 +52,7 @@ export default function Register() {
         <form className="space-y-4" onSubmit={handleRegister}>
           <input
             type="text"
-            placeholder="Name"
+            placeholder="Full Name"
             value={name}
             onChange={(e) => setName(e.target.value)}
             className="w-full border p-3 rounded-md"

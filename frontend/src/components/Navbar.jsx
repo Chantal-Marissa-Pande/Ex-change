@@ -2,6 +2,7 @@ import React from "react";
 import { useNavigate } from "react-router-dom";
 import logo from "../assets/logo.png";
 
+ 
 export default function Navbar() {
   const navigate = useNavigate();
 
@@ -11,14 +12,8 @@ export default function Navbar() {
         <img src={logo} alt="Ex-change Logo" className="h-20" />
         <span className="font-bold text-xl">Ex-change</span>
       </div>
-
-      <div className="flex gap-4">
-        <button
-          onClick={() => navigate("/skills")}
-          className="hover:underline"
-        >
-          Explore Skills
-        </button>
+      
+     <div className="flex gap-4">
         <button
           onClick={() => navigate("/login")}
           className="hover:underline"

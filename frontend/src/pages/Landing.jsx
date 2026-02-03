@@ -3,7 +3,6 @@ import { useNavigate } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import Hero from "../components/Hero";
 import HowItWorks from "../components/HowItWorks";
-import FeaturedSkills from "../components/FeaturedSkills";
 
 export default function LandingPage() {
   const navigate = useNavigate();
@@ -16,7 +15,6 @@ export default function LandingPage() {
         onExploreSkills={() => navigate("/skills")}
       />
       <HowItWorks />
-      <FeaturedSkills />
     </div>
   );
 }

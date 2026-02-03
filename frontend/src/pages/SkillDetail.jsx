@@ -1,23 +1,31 @@
 import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import api from "../api/axios";
+import toast from "react-hot-toast";
 
 export default function SkillDetail() {
   const { skillId } = useParams();
+  const navigate = useNavigate();
   const [skill, setSkill] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [requesting, setRequesting] = useState(false);
-  const [successMessage, setSuccessMessage] = useState("");
 
   useEffect(() => {
     const fetchSkill = async () => {
       try {
         setLoading(true);
-        const res = await api.get(`/api/skills/${skillId}`);
-        setSkill(res.data);
+        const res = await api.get(`/api/skill/${skillId}`);
+
+        const skillData = {
+          ...res.data,
+          tags: res.data.tags
+            ? res.data.tags.split(",").map((t) => t.trim())
+            : [],
+        };
+
+        setSkill(skillData);
       } catch (err) {
-        console.error(err);
+        console.error("Skill fetch error:", err);
         setError("Failed to load skill details.");
       } finally {
         setLoading(false);
@@ -27,57 +35,58 @@ export default function SkillDetail() {
     fetchSkill();
   }, [skillId]);
 
-  const handleRequest = async () => {
-    setRequesting(true);
-    setError("");
-    setSuccessMessage("");
-
+  const handleRequestExchange = async () => {
     try {
-      const token = localStorage.getItem("token");
-      const res = await api.post(
-        "/api/exchanges",
-        { listing_id: skill.id },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      setSuccessMessage("Skill request submitted successfully!");
+      if (!skill.listing_id) {
+        toast.error("This skill is not available for exchange.");
+        return;
+      }
+      await api.post("/api/exchange", { listing_id: skill.listing_id });
+      toast.success("Exchange request sent!");
     } catch (err) {
-      console.error(err);
-      setError(err.response?.data?.message || "Failed to submit request.");
-    } finally {
-      setRequesting(false);
+      console.error("Exchange request failed:", err);
+      toast.error("Failed to send exchange request.");
     }
   };
 
-  if (loading) return <p className="text-center p-8">Loading skill...</p>;
-  if (error) return <p className="text-center p-8 text-red-600">{error}</p>;
+  if (loading) return <div className="p-10 text-center">Loading skill…</div>;
+  if (error) return <div className="p-10 text-center text-red-600">{error}</div>;
+  if (!skill) return <div className="p-10 text-center text-gray-500">Skill not found.</div>;
 
   return (
-    <div className="min-h-screen bg-background p-8 flex justify-center">
-      <div className="bg-white p-8 rounded-xl shadow-md w-full max-w-2xl">
-        <h1 className="text-2xl font-bold text-primary mb-4">
-          {skill.title}
-        </h1>
-        <p className="text-text mb-2">{skill.description || "No description"}</p>
-        <p className="text-text mb-4">
-          <span className="font-medium">Category:</span> {skill.category}
+    <div className="min-h-screen bg-background p-8">
+      <button
+        className="mb-6 text-primary underline"
+        onClick={() => navigate("/dashboard")}
+      >
+        ← Back to Dashboard
+      </button>
+
+      <div className="bg-white p-6 rounded-xl shadow">
+        <h1 className="text-2xl font-bold mb-2">{skill.title}</h1>
+        <p className="text-gray-600 mb-2">
+          Offered by <strong>{skill.owner_name}</strong>
         </p>
-        <p className="text-text mb-6">
-          <span className="font-medium">Provided by:</span> {skill.owner_name}
+        <p className="text-gray-600 mb-4">
+          Exchanged <strong>{skill.exchange_count || 0}</strong> times
         </p>
 
-        {successMessage && (
-          <p className="text-green-600 mb-4">{successMessage}</p>
-        )}
-        {error && <p className="text-red-600 mb-4">{error}</p>}
+        <div className="flex gap-2 mb-4 flex-wrap">
+          {skill.tags.map((t, idx) => (
+            <span
+              key={t + "-" + idx} // Unique key to avoid duplicates
+              className="text-xs bg-gray-100 px-2 py-1 rounded-full"
+            >
+              {t}
+            </span>
+          ))}
+        </div>
 
         <button
-          onClick={handleRequest}
-          disabled={requesting}
-          className={`w-full bg-primary text-white py-3 rounded-md hover:bg-green-700 transition ${
-            requesting ? "opacity-70 cursor-not-allowed" : ""
-          }`}
+          onClick={handleRequestExchange}
+          className="bg-primary text-white px-4 py-2 rounded-md hover:bg-green-700"
         >
-          {requesting ? "Submitting..." : "Request this Skill"}
+          Request Exchange
         </button>
       </div>
     </div>
