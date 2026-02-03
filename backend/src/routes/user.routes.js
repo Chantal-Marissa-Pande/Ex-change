@@ -36,7 +36,21 @@ router.get("/requests", authenticate, async (req, res) => {
     if (isNaN(userId)) return res.status(400).json({ message: "Invalid user ID" });
 
     const result = await pool.query(
-      "SELECT id, requester, skill, status FROM requests WHERE requested_id = $1",
+      `
+      SELECT 
+        e.id AS exchange_id,
+        e.status,
+        e.created_at,
+        l.description AS listing_description,
+        l.skill_offered_id,
+        l.skill_requested_id,
+        u.id AS requester_id,
+        u.name AS requester_name
+      FROM exchanges e
+      JOIN listings l ON e.listing_id = l.id
+      JOIN users u ON e.requester_id = u.id
+      WHERE l.user_id = $1
+      `,
       [userId]
     );
 

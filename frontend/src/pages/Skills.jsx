@@ -7,53 +7,68 @@ export default function Skills({ currentUser }) {
   const [skills, setSkills] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState(search);
   const [mineOnly, setMineOnly] = useState(false);
   const [sort, setSort] = useState("newest");
   const [selectedTags, setSelectedTags] = useState([]);
   const [error, setError] = useState(null);
   const navigate = useNavigate();
 
-  // Fetch skills
+  // -----------------------------
+  // Fetch skills function
+  // -----------------------------
+  const fetchSkills = async (query = debouncedSearch) => {
+    try {
+      setLoading(true);
+      const res = await api.get("/api/skill", {
+        params: {
+          q: query,
+          mine: mineOnly ? "true" : "false",
+          sort,
+        },
+      });
+
+      const skillsData = res.data.map((s) => ({
+        ...s,
+        tags: s.tags ? s.tags.split(",").map((t) => t.trim()) : [],
+      }));
+
+      setSkills(skillsData);
+      setError(null);
+    } catch (err) {
+      console.error("Skills fetch error:", err);
+      setError("Failed to load skills");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // -----------------------------
+  // Fetch skills on debounce, mineOnly, sort change
+  // -----------------------------
   useEffect(() => {
-    const fetchSkills = async () => {
-      try {
-        setLoading(true);
-        const res = await api.get("/api/skills", {
-          params: {
-            q: search,
-            mine: mineOnly,
-            sort,
-          },
-        });
-
-        // Parse tags for each skill
-        const skillsData = res.data.map((s) => ({
-          ...s,
-          tags: s.tags ? s.tags.split(",").map((t) => t.trim()) : [],
-        }));
-
-        setSkills(skillsData);
-      } catch (err) {
-        console.error("Skills fetch error:", err);
-        setError("Failed to load skills");
-      } finally {
-        setLoading(false);
-      }
-    };
-
     fetchSkills();
-  }, [search, mineOnly, sort]);
+  }, [debouncedSearch, mineOnly, sort]);
 
+  // -----------------------------
   // Filter skills by selected tags
+  // -----------------------------
   const filteredSkills = skills.filter((skill) => {
     if (selectedTags.length === 0) return true;
     return skill.tags.some((t) => selectedTags.includes(t));
   });
 
+  // -----------------------------
   // Send exchange request
-  const handleRequestExchange = async (skillId) => {
+  // -----------------------------
+  const handleRequestExchange = async (listingId) => {
+    if (!listingId) {
+      toast.error("This skill is not available for exchange.");
+      return;
+    }
+
     try {
-      await api.post("/api/exchange", { listing_id: skillId });
+      await api.post("/api/exchange", { listing_id: listingId });
       toast.success("Exchange request sent!");
     } catch (err) {
       console.error("Exchange request failed:", err);
@@ -61,27 +76,46 @@ export default function Skills({ currentUser }) {
     }
   };
 
-  // Get all unique tags
+  // -----------------------------
+  // Reset search/filter
+  // -----------------------------
+  const handleBack = () => {
+    setSearch("");
+    setMineOnly(false);
+    setSelectedTags([]);
+    setSort("newest");
+    setSkills([]);
+    setError(null);
+  };
+
+  // -----------------------------
+  // Unique tags
+  // -----------------------------
   const allTags = [...new Set(skills.flatMap((s) => s.tags || []))];
 
   if (loading) return <p className="text-center p-8">Loading skills...</p>;
   if (error) return <p className="text-center p-8 text-red-600">{error}</p>;
-  if (!skills.length)
-    return <p className="text-center p-8 text-gray-500">No skills available.</p>;
 
   return (
     <section className="bg-white p-6 rounded-xl shadow">
       <h2 className="text-xl font-semibold mb-4">Skills Marketplace</h2>
 
       {/* Controls */}
-      <div className="flex flex-wrap gap-3 mb-4">
+      <div className="flex flex-wrap gap-3 mb-4 items-center">
         <input
           type="text"
-          placeholder="Search skills or owners…"
+          placeholder="Search skills"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="border p-2 rounded w-64"
         />
+
+        <button
+          onClick={() => fetchSkills(search)}
+          className="bg-primary text-white px-4 py-2 rounded-md hover:bg-green-700"
+        >
+          Search
+        </button>
 
         <label className="flex items-center gap-2">
           <input
@@ -127,12 +161,30 @@ export default function Skills({ currentUser }) {
 
       {/* Results */}
       {filteredSkills.length === 0 ? (
-        <p className="text-gray-500">No skills match your filters.</p>
+        <div className="text-center p-8">
+          <p className="text-gray-500 mb-4">
+            No skills match your search or filters.
+          </p>
+          <button
+            onClick={() => {
+              setSearch("");
+              setMineOnly(false);
+              setSelectedTags([]);
+              setSort("newest");
+              setError(null);
+              fetchSkills(""); // reload original full list
+            }}
+            className="bg-primary text-white px-4 py-2 rounded-md hover:bg-green-700"
+          >
+            ← Back to all skills
+          </button>
+        </div>
       ) : (
+        
         <ul className="space-y-3">
           {filteredSkills.map((skill) => (
             <li
-              key={skill.id + "-" + skill.owner_id} // Unique key
+              key={skill.id + "-" + skill.owner_id}
               className="border p-4 rounded-lg hover:bg-gray-50"
             >
               <div
@@ -158,7 +210,7 @@ export default function Skills({ currentUser }) {
               </div>
 
               <button
-                onClick={() => handleRequestExchange(skill.listing_id || skill.id)}
+                onClick={() => handleRequestExchange(skill.listing_id || null)}
                 className="mt-2 text-primary font-medium"
               >
                 Request Exchange →

@@ -14,7 +14,7 @@ export default function SkillDetail() {
     const fetchSkill = async () => {
       try {
         setLoading(true);
-        const res = await api.get(`/api/skill/${skillId}`);
+        const res = await api.get(`/api/skill/${skillId}`); // singular endpoint
 
         const skillData = {
           ...res.data,
@@ -24,9 +24,14 @@ export default function SkillDetail() {
         };
 
         setSkill(skillData);
+        setError(null);
       } catch (err) {
         console.error("Skill fetch error:", err);
-        setError("Failed to load skill details.");
+        if (err.response?.status === 404) {
+          setError("Skill not found.");
+        } else {
+          setError("Failed to load skill details.");
+        }
       } finally {
         setLoading(false);
       }
