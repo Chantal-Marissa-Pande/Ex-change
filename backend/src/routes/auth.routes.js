@@ -15,8 +15,11 @@ router.post("/register", async (req, res) => {
   }
 
   try {
-    // Check if user exists
-    const existingUser = await pool.query("SELECT * FROM users WHERE email = $1", [email]);
+    // Check if user already exists
+    const existingUser = await pool.query(
+      "SELECT id FROM users WHERE email = $1",
+      [email]
+    );
     if (existingUser.rows.length > 0) {
       return res.status(400).json({ message: "Email already registered" });
     }
@@ -24,16 +27,22 @@ router.post("/register", async (req, res) => {
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Insert user
-    const newUser = await pool.query(
-      "INSERT INTO users (name, email, password_hash) VALUES ($1, $2, $3) RETURNING id, name, email",
-      [name, email, hashedPassword]
-    );
+    // Insert new user
+    const newUserQuery = `
+      INSERT INTO users (name, email, password_hash)
+      VALUES ($1, $2, $3)
+      RETURNING id, name, email
+    `;
+    const newUser = await pool.query(newUserQuery, [name, email, hashedPassword]);
 
     const user = newUser.rows[0];
 
-    // Generate JWT
-    const token = jwt.sign({ id: user.id, email: user.email }, process.env.JWT_SECRET, { expiresIn: "1d" });
+    // Generate JWT token
+    const token = jwt.sign(
+      { id: user.id, email: user.email },
+      process.env.JWT_SECRET,
+      { expiresIn: "1d" }
+    );
 
     res.status(201).json({ token, user });
   } catch (err) {
@@ -48,21 +57,29 @@ router.post("/register", async (req, res) => {
 router.post("/login", async (req, res) => {
   const { email, password } = req.body;
 
-  if (!email || !password) return res.status(400).json({ message: "Email and password required" });
+  if (!email || !password)
+    return res.status(400).json({ message: "Email and password are required" });
 
   try {
-    // Check if user exists
-    const userResult = await pool.query("SELECT * FROM users WHERE email = $1", [email]);
-    if (!userResult.rows.length) return res.status(401).json({ message: "Invalid credentials" });
+    const userQuery = "SELECT id, name, email, password_hash FROM users WHERE email = $1";
+    const result = await pool.query(userQuery, [email]);
 
-    const user = userResult.rows[0];
+    if (result.rows.length === 0) {
+      return res.status(401).json({ message: "Invalid credentials" });
+    }
 
-    // Compare password
-    const match = await bcrypt.compare(password, user.password_hash);
-    if (!match) return res.status(401).json({ message: "Invalid credentials" });
+    const user = result.rows[0];
 
-    // Generate JWT
-    const token = jwt.sign({ id: user.id, email: user.email }, process.env.JWT_SECRET, { expiresIn: "1d" });
+    // Compare hashed password
+    const isMatch = await bcrypt.compare(password, user.password_hash);
+    if (!isMatch) return res.status(401).json({ message: "Invalid credentials" });
+
+    // Generate JWT token
+    const token = jwt.sign(
+      { id: user.id, email: user.email },
+      process.env.JWT_SECRET,
+      { expiresIn: "1d" }
+    );
 
     res.json({
       token,

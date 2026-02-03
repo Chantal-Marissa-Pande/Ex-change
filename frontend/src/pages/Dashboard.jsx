@@ -1,5 +1,6 @@
 // src/pages/Dashboard.jsx
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import api from "../api/axios";
 import Skills from "./Skills";
 import toast from "react-hot-toast";
@@ -11,6 +12,7 @@ export default function Dashboard() {
   const [activeTab, setActiveTab] = useState("skills");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const navigate = useNavigate();
 
   // Load dashboard data
   const loadDashboard = async () => {
@@ -52,9 +54,24 @@ export default function Dashboard() {
     }
   }, [activeTab, user]);
 
+  // -----------------------------
+  // Logout function
+  // -----------------------------
+  const handleLogout = async () => {
+    try {
+      setUser(null);
+      setProfile(null);
+      toast.success("Logged out successfully!");
+      navigate("/Login");
+    } catch (err) {
+      console.error("Logout failed:", err);
+      toast.error("Failed to log out.");
+    }
+  };
+
   const handleAddSkill = async (title, tags) => {
     try {
-      const res = await api.post("/api/user/add-skill", { title, tags });
+      await api.post("/api/user/add-skill", { title, tags });
       toast.success("Skill added!");
       // Refresh profile after adding
       loadProfile();
@@ -70,7 +87,16 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen bg-background p-6">
       <div className="max-w-6xl mx-auto">
-        <h1 className="text-3xl font-bold mb-6">Welcome, {user.name} 👋</h1>
+        {/* Greeting + Logout */}
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-3xl font-bold">Welcome, {user.name} 👋</h1>
+          <button
+            onClick={handleLogout}
+            className="bg-red-500 text-white px-4 py-2 rounded-md hover:bg-red-600"
+          >
+            Logout
+          </button>
+        </div>
 
         {/* Tabs */}
         <div className="flex gap-3 mb-6">
@@ -103,7 +129,9 @@ export default function Dashboard() {
             </p>
             <p>
               <strong>My Skills:</strong>{" "}
-              {profile.skills?.length ? profile.skills.map(s => s.title).join(", ") : "None yet"}
+              {profile.skills?.length
+                ? profile.skills.map((s) => s.title).join(", ")
+                : "None yet"}
             </p>
 
             {/* Add Skill Form */}
@@ -162,7 +190,10 @@ function AddSkillForm({ onAddSkill }) {
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!title) return;
-    const tagsArray = tags.split(",").map((t) => t.trim()).filter(Boolean);
+    const tagsArray = tags
+      .split(",")
+      .map((t) => t.trim())
+      .filter(Boolean);
     onAddSkill(title, tagsArray);
     setTitle("");
     setTags("");
@@ -185,7 +216,10 @@ function AddSkillForm({ onAddSkill }) {
         onChange={(e) => setTags(e.target.value)}
         className="border p-2 rounded w-full"
       />
-      <button type="submit" className="bg-primary text-white px-4 py-2 rounded-md">
+      <button
+        type="submit"
+        className="bg-primary text-white px-4 py-2 rounded-md"
+      >
         Add Skill
       </button>
     </form>

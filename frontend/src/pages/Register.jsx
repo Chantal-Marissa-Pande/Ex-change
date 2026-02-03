@@ -28,9 +28,16 @@ export default function Register() {
 
     try {
       setLoading(true);
+
+      // Send registration request
       const res = await api.post("/api/auth/register", { name, email, password });
+
+      // Store token & user in localStorage (fix)
+      localStorage.setItem("token", res.data.token);
+      localStorage.setItem("user", JSON.stringify(res.data.user));
+
       toast.success("Registration successful!");
-      navigate("/dashboard");
+      navigate("/dashboard"); // new user now sees their own dashboard
     } catch (err) {
       console.error("REGISTER ERROR:", err);
       setError(err.response?.data?.message || "Registration failed");
