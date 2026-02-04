@@ -1,110 +1,99 @@
 const express = require("express");
 const router = express.Router();
 const pool = require("../config/db");
-const authenticate = require("../middleware/authenticate");
 
-// ---------------------------
-// GET /api/skill
-// Fetch all skills with optional search, mine, tag, and sort
-// ---------------------------
-router.get("/", authenticate, async (req, res) => {
+// --------------------
+// Get all skills with optional search & tag filter
+// --------------------
+router.get("/", async (req, res) => {
+  const { q = "", tag = "" } = req.query;
+
   try {
-    const { q, mine, sort, tag } = req.query;
-    const values = [];
-    let whereClauses = ["1=1"];
-
-    // Search by skill title
-    if (q) {
-      values.push(`%${q}%`);
-      whereClauses.push(`s.title ILIKE $${values.length}`);
-    }
-
-    // Filter by current user's skills
-    if (mine === "true") {
-      values.push(req.user.id);
-      whereClauses.push(`us.user_id = $${values.length}`);
-    }
-
-    // Filter by tag
-    if (tag) {
-      values.push(`%${tag}%`);
-      whereClauses.push(`s.tags ILIKE $${values.length}`);
-    }
-
-    // Sorting
-    let orderBy = "s.created_at DESC"; // default newest
-    if (sort === "popular") orderBy = "COALESCE(e.exchange_count, 0) DESC";
-
-    const query = `
-      SELECT
+    let query = `
+      SELECT 
         s.id,
         s.title,
         s.tags,
         u.id AS owner_id,
         u.name AS owner_name,
-        l.id AS listing_id,
-        COALESCE(e.exchange_count, 0) AS exchange_count
+        COALESCE(l.exchange_count, 0) AS exchange_count
       FROM skills s
-      JOIN user_skills us ON us.skill_id = s.id
-      JOIN users u ON us.user_id = u.id
-      LEFT JOIN listings l ON l.skill_offered_id = s.id
+      JOIN skill_detail sd ON sd.skill_id = s.id
+      JOIN users u ON sd.user_id = u.id
       LEFT JOIN (
         SELECT listing_id, COUNT(*) AS exchange_count
         FROM exchanges
         GROUP BY listing_id
-      ) e ON e.listing_id = l.id
-      WHERE ${whereClauses.join(" AND ")}
-      GROUP BY s.id, u.id, l.id, e.exchange_count
-      ORDER BY ${orderBy};
+      ) l ON l.listing_id = s.id
+      WHERE 1=1
     `;
 
-    const result = await pool.query(query, values);
-    res.json(result.rows);
+    const params = [];
+    if (q) {
+      params.push(`%${q}%`);
+      query += ` AND s.title ILIKE $${params.length}`;
+    }
+
+    if (tag) {
+      params.push(`%${tag}%`);
+      query += ` AND s.tags ILIKE $${params.length}`;
+    }
+
+    const { rows } = await pool.query(query, params);
+
+    const skills = rows.map((s) => ({
+      id: s.id,
+      title: s.title,
+      tags: s.tags
+        ? Array.isArray(s.tags)
+          ? s.tags
+          : s.tags.split(",").map((t) => t.trim())
+        : [],
+      owner_id: s.owner_id,
+      owner_name: s.owner_name,
+      exchange_count: parseInt(s.exchange_count, 10),
+    }));
+
+    res.json(skills);
   } catch (err) {
-    console.error("Skills fetch error:", err);
-    res.status(500).json({ message: "Failed to fetch skills" });
+    console.error("GET /skills error:", err);
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
-// ---------------------------
-// GET /api/skill/:id
-// Fetch single skill by ID
-// ---------------------------
-router.get("/:id", authenticate, async (req, res) => {
+// --------------------
+// Get single skill by ID
+// --------------------
+router.get("/:skillId", async (req, res) => {
+  const { skillId } = req.params;
+
   try {
-    const { id } = req.params;
-    const query = `
-      SELECT
-        s.id,
-        s.title,
-        s.tags,
-        u.id AS owner_id,
-        u.name AS owner_name,
-        l.id AS listing_id,
-        COALESCE(e.exchange_count, 0) AS exchange_count
+    const { rows } = await pool.query(
+      `
+      SELECT s.*, u.id AS owner_id, u.name AS owner_name
       FROM skills s
-      JOIN user_skills us ON us.skill_id = s.id
-      JOIN users u ON us.user_id = u.id
-      LEFT JOIN listings l ON l.skill_offered_id = s.id
-      LEFT JOIN (
-        SELECT listing_id, COUNT(*) AS exchange_count
-        FROM exchanges
-        GROUP BY listing_id
-      ) e ON e.listing_id = l.id
+      JOIN skill_detail sd ON sd.skill_id = s.id
+      JOIN users u ON sd.user_id = u.id
       WHERE s.id = $1
-      GROUP BY s.id, u.id, l.id, e.exchange_count;
-    `;
+      `,
+      [skillId]
+    );
 
-    const result = await pool.query(query, [id]);
+    if (!rows[0]) return res.status(404).json({ error: "Skill not found" });
+    const skill = rows[0];
 
-    if (!result.rows.length) {
-      return res.status(404).json({ message: "Skill not found" });
-    }
+    skill.tags = skill.tags
+      ? Array.isArray(skill.tags)
+        ? skill.tags
+        : skill.tags.split(",").map((t) => t.trim())
+      : [];
+    skill.messages = skill.messages || [];
+    skill.ratings = skill.ratings || [];
 
-    res.json(result.rows[0]);
+    res.json(skill);
   } catch (err) {
-    console.error("Get skill by ID error:", err);
-    res.status(500).json({ message: "Failed to fetch skill" });
+    console.error("GET /skills/:id error:", err);
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 

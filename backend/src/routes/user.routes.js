@@ -1,4 +1,3 @@
-// backend/src/routes/user.routes.js
 const express = require("express");
 const router = express.Router();
 const pool = require("../config/db");
@@ -10,15 +9,17 @@ const authenticate = require("../middleware/authenticate");
 // -------------------
 router.get("/me", authenticate, async (req, res) => {
   try {
-    const userId = parseInt(req.user.id);
-    if (isNaN(userId)) return res.status(400).json({ message: "Invalid user ID" });
+    const userId = Number(req.user.id);
+    if (!userId) return res.status(400).json({ message: "Invalid user ID" });
 
     const result = await pool.query(
       "SELECT id, name, email FROM users WHERE id = $1",
       [userId]
     );
 
-    if (!result.rows.length) return res.status(404).json({ message: "User not found" });
+    if (!result.rows.length)
+      return res.status(404).json({ message: "User not found" });
+
     res.json(result.rows[0]);
   } catch (err) {
     console.error("GET /me error:", err);
@@ -32,28 +33,37 @@ router.get("/me", authenticate, async (req, res) => {
 // -------------------
 router.get("/requests", authenticate, async (req, res) => {
   try {
-    const userId = parseInt(req.user.id);
-    if (isNaN(userId)) return res.status(400).json({ message: "Invalid user ID" });
+    const userId = Number(req.user.id);
+    if (!userId) return res.status(400).json({ message: "Invalid user ID" });
 
-    const result = await pool.query(
-      `
-      SELECT 
+    const query = `
+      SELECT
         e.id AS exchange_id,
         e.status,
         e.created_at,
+
+        l.id AS listing_id,
         l.description AS listing_description,
-        l.skill_offered_id,
-        l.skill_requested_id,
+
+        offeredSkill.title AS skill_offered,
+        requestedSkill.title AS skill_requested,
+
         u.id AS requester_id,
         u.name AS requester_name
       FROM exchanges e
-      JOIN listings l ON e.listing_id = l.id
-      JOIN users u ON e.requester_id = u.id
-      WHERE l.user_id = $1
-      `,
-      [userId]
-    );
+      JOIN listings l ON l.id = e.listing_id
 
+      JOIN skill_detail sd ON l.skill_offered_detail_id = sd.id
+      JOIN skills offeredSkill ON sd.skill_id = offeredSkill.id
+
+      JOIN skills requestedSkill ON l.skill_requested_id = requestedSkill.id
+      JOIN users u ON e.requester_id = u.id
+
+      WHERE l.user_id = $1
+      ORDER BY e.created_at DESC
+    `;
+
+    const result = await pool.query(query, [userId]);
     res.json(result.rows);
   } catch (err) {
     console.error("GET /requests error:", err);
@@ -62,69 +72,71 @@ router.get("/requests", authenticate, async (req, res) => {
 });
 
 // -------------------
-// Get a user by ID
-// GET /api/user/:userId
+// Get incoming & outgoing requests for a user
+// GET /api/user/:userId/requests
 // -------------------
-router.get("/:userId", async (req, res) => {
+router.get("/:userId/requests", async (req, res) => {
+  const userId = Number(req.params.userId);
+  if (!userId) return res.status(400).json({ message: "Invalid user ID" });
+
   try {
-    const userId = parseInt(req.params.userId);
-    if (isNaN(userId)) return res.status(400).json({ message: "Invalid user ID" });
+    // Incoming (you own the listing)
+    const incomingQuery = `
+      SELECT
+        e.id AS exchange_id,
+        e.status,
+        e.created_at,
+        l.description,
+        offeredSkill.title AS skill_offered,
+        requestedSkill.title AS skill_requested,
+        u.id AS requester_id,
+        u.name AS requester_name
+      FROM exchanges e
+      JOIN listings l ON l.id = e.listing_id
 
-    const result = await pool.query(
-      "SELECT id, name, email FROM users WHERE id = $1",
-      [userId]
-    );
+      JOIN skill_detail sd ON l.skill_offered_detail_id = sd.id
+      JOIN skills offeredSkill ON sd.skill_id = offeredSkill.id
 
-    if (!result.rows.length) return res.status(404).json({ message: "User not found" });
+      JOIN skills requestedSkill ON l.skill_requested_id = requestedSkill.id
+      JOIN users u ON e.requester_id = u.id
 
-    // Fetch the user's skills
-    const skillsRes = await pool.query(
-      "SELECT s.title, s.tags FROM skills s JOIN user_skills us ON s.id = us.skill_id WHERE us.user_id = $1",
-      [userId]
-    );
+      WHERE l.user_id = $1
+    `;
 
-    const skills = skillsRes.rows.map((s) => ({
-      ...s,
-      tags: s.tags ? s.tags.split(",").map((t) => t.trim()) : [],
-    }));
+    // Outgoing (you made the request)
+    const outgoingQuery = `
+      SELECT
+        e.id AS exchange_id,
+        e.status,
+        e.created_at,
+        l.description,
+        offeredSkill.title AS skill_offered,
+        requestedSkill.title AS skill_requested,
+        u.id AS owner_id,
+        u.name AS owner_name
+      FROM exchanges e
+      JOIN listings l ON l.id = e.listing_id
 
-    res.json({ ...result.rows[0], skills });
+      JOIN skill_detail sd ON l.skill_offered_detail_id = sd.id
+      JOIN skills offeredSkill ON sd.skill_id = offeredSkill.id
+
+      JOIN skills requestedSkill ON l.skill_requested_id = requestedSkill.id
+      JOIN users u ON l.user_id = u.id
+
+      WHERE e.requester_id = $1
+    `;
+
+    const [incoming, outgoing] = await Promise.all([
+      pool.query(incomingQuery, [userId]),
+      pool.query(outgoingQuery, [userId]),
+    ]);
+
+    res.json({
+      incoming: incoming.rows,
+      outgoing: outgoing.rows,
+    });
   } catch (err) {
-    console.error("GET /:userId error:", err);
-    res.status(500).json({ message: "Internal server error" });
-  }
-});
-
-// -------------------
-// Add a skill to logged-in user
-// POST /api/user/add-skill
-// body: { title, tags }
-// -------------------
-router.post("/add-skill", authenticate, async (req, res) => {
-  try {
-    const userId = parseInt(req.user.id);
-    if (isNaN(userId)) return res.status(400).json({ message: "Invalid user ID" });
-
-    const { title, tags } = req.body;
-    if (!title) return res.status(400).json({ message: "Skill title is required" });
-
-    // Insert skill
-    const insertSkill = await pool.query(
-      "INSERT INTO skills (title, tags) VALUES ($1, $2) RETURNING id, title, tags",
-      [title, tags ? tags.join(",") : null]
-    );
-
-    const skill = insertSkill.rows[0];
-
-    // Link skill to user
-    await pool.query(
-      "INSERT INTO user_skills (user_id, skill_id) VALUES ($1, $2)",
-      [userId, skill.id]
-    );
-
-    res.json({ message: "Skill added successfully", skill: { ...skill, tags: tags || [] } });
-  } catch (err) {
-    console.error("POST /add-skill error:", err);
+    console.error("GET /:userId/requests error:", err);
     res.status(500).json({ message: "Internal server error" });
   }
 });

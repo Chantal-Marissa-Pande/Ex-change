@@ -13,13 +13,16 @@ const authRoutes = require("./routes/auth.routes");
 const userRoutes = require("./routes/user.routes");
 const skillRoutes = require("./routes/skill.routes");
 const exchangeRoutes = require("./routes/exchange.routes");
+const messageRoutes = require("./routes/messages.routes");
+const ratingRoutes = require("./routes/ratings.routes");
 
 app.use("/api/exchange", exchangeRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/user", userRoutes);
-app.use("/api/skill", skillRoutes);
+app.use("/api/skills", skillRoutes);
+app.use("/api/messages", messageRoutes);
+app.use("/api/ratings", ratingRoutes);
 
-// Health check
 app.get("/", (req, res) => {
   res.send("API is running");
 });

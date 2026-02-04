@@ -2,7 +2,7 @@
 DROP TABLE IF EXISTS user_activity;
 DROP TABLE IF EXISTS exchanges;
 DROP TABLE IF EXISTS listings;
-DROP TABLE IF EXISTS user_skills;
+DROP TABLE IF EXISTS skill_detail;
 DROP TABLE IF EXISTS skills;
 DROP TABLE IF EXISTS users;
 
@@ -15,29 +15,32 @@ CREATE TABLE users (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- SKILLS (GLOBAL)
--- tags stored as comma-separated string instead of TEXT[]
+-- SKILLS (GLOBAL DEFINITIONS)
 CREATE TABLE skills (
   id SERIAL PRIMARY KEY,
-  title VARCHAR(100) NOT NULL,
-  description TEXT,
-  tags TEXT, -- comma-separated, e.g., 'web,frontend,react'
+  title VARCHAR(100) NOT NULL UNIQUE,
+  category VARCHAR(100),
+  tags TEXT, -- comma-separated: 'web,frontend,react'
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- USER ↔ SKILLS (OWNED SKILLS)
-CREATE TABLE user_skills (
+-- SKILL DETAILS (USER-SPECIFIC SKILL INFO)
+CREATE TABLE skill_detail (
+  id SERIAL PRIMARY KEY,
   user_id INT REFERENCES users(id) ON DELETE CASCADE,
   skill_id INT REFERENCES skills(id) ON DELETE CASCADE,
-  level VARCHAR(50),
-  PRIMARY KEY (user_id, skill_id)
+  level VARCHAR(50), -- beginner, intermediate, expert
+  years_experience INT,
+  description TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (user_id, skill_id)
 );
 
 -- LISTINGS (SKILL EXCHANGE POSTS)
 CREATE TABLE listings (
   id SERIAL PRIMARY KEY,
   user_id INT REFERENCES users(id) ON DELETE CASCADE,
-  skill_offered_id INT REFERENCES skills(id),
+  skill_offered_detail_id INT REFERENCES skill_detail(id),
   skill_requested_id INT REFERENCES skills(id),
   description TEXT,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -52,7 +55,7 @@ CREATE TABLE exchanges (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- USER ACTIVITY (FOR PERSONALIZATION)
+-- USER ACTIVITY (FOR PERSONALIZATION / AI)
 CREATE TABLE user_activity (
   id SERIAL PRIMARY KEY,
   user_id INT REFERENCES users(id) ON DELETE CASCADE,
