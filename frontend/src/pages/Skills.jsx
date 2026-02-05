@@ -45,15 +45,35 @@ export default function Skills({
     }
   };
 
+  // -----------------------------
+  // Delete skill
+  // -----------------------------
+  const handleDeleteSkill = async (skillId) => {
+    // Optimistic UI: remove locally first
+    const prevSkills = [...skills];
+    setSkills(skills.filter((s) => s.id !== skillId));
+
+    try {
+      await api.delete(`/api/user/skills/${skillId}`);
+      toast.success("Skill deleted!");
+    } catch (err) {
+      console.error("Delete skill error:", err);
+      toast.error("Failed to delete skill");
+      setSkills(prevSkills); // rollback
+    }
+  };
+
   useEffect(() => {
     fetchSkills();
   }, []);
 
   if (loading) return <div className="p-10 text-center">Loading skills…</div>;
-  if (!skills.length) return <div className="p-10 text-center text-gray-500">No skills available.</div>;
+  if (!skills?.length)
+    return <div className="p-10 text-center text-gray-500">No skills available.</div>;
 
   return (
     <div>
+      {/* Search & filter */}
       <div className="mb-6 flex gap-2">
         <input
           type="text"
@@ -83,23 +103,46 @@ export default function Skills({
         </button>
       </div>
 
+      {/* Skills grid */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {skills.map((skill, idx) => (
           <div
             key={`${skill.id}-${idx}`}
             className="p-4 bg-white rounded-xl shadow cursor-pointer hover:shadow-lg transition"
-            onClick={() => navigate(`/skills/${skill.id}`)}
           >
-            <h2 className="text-xl font-semibold mb-2">{skill.title}</h2>
-            <p className="text-gray-600">Offered by <strong>{skill.owner_name}</strong></p>
-            <p className="text-gray-500 text-sm">Exchanged {skill.exchange_count} times</p>
-            <div className="flex gap-2 mt-2 flex-wrap">
-              {skill.tags.map((t, tagIdx) => (
-                <span key={`${skill.id}-tag-${tagIdx}`} className="text-xs bg-gray-100 px-2 py-1 rounded-full">
-                  {t}
-                </span>
-              ))}
+            <div
+              onClick={() => navigate(`/skills/${skill.id}`)}
+              className="cursor-pointer"
+            >
+              <h2 className="text-xl font-semibold mb-2">{skill.title}</h2>
+              <p className="text-gray-600">
+                Offered by <strong>{skill.owner_name}</strong>
+              </p>
+              <p className="text-gray-500 text-sm">
+                Exchanged {skill.exchange_count} times
+              </p>
+
+              <div className="flex gap-2 mt-2 flex-wrap">
+                {skill.tags.map((t, tagIdx) => (
+                  <span
+                    key={`${skill.id}-tag-${tagIdx}`}
+                    className="text-xs bg-gray-100 px-2 py-1 rounded-full"
+                  >
+                    {t}
+                  </span>
+                ))}
+              </div>
             </div>
+
+            {/* Delete button (owner only) */}
+            {skill.owner_id === currentUser?.id && (
+              <button
+                onClick={() => handleDeleteSkill(skill.id)}
+                className="mt-3 bg-red-500 text-white px-3 py-1 rounded text-sm"
+              >
+                Delete
+              </button>
+            )}
           </div>
         ))}
       </div>

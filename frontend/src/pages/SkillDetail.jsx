@@ -3,14 +3,14 @@ import { useParams, useNavigate } from "react-router-dom";
 import api from "../api/axios";
 import toast from "react-hot-toast";
 
-export default function SkillDetail() {
+export default function SkillDetail({ currentUser, onDelete }) {
   const { skillId } = useParams();
   const navigate = useNavigate();
   const [skill, setSkill] = useState(null);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
   const [newRating, setNewRating] = useState({ rating: 5, comment: "" });
-  const [canRate, setCanRate] = useState(false); // <-- initially can't rate
+  const [canRate, setCanRate] = useState(false); // initially can't rate
 
   useEffect(() => {
     const fetchSkillData = async () => {
@@ -42,24 +42,21 @@ export default function SkillDetail() {
   // -----------------------------
   // Send request/message
   // -----------------------------
-const sendRequest = async () => {
-  if (!skill?.listing_id) {
-    toast.error("This skill has no active listing");
-    return;
-  }
+  const sendRequest = async () => {
+    if (!skill?.listing_id) {
+      toast.error("This skill has no active listing");
+      return;
+    }
 
-  try {
-    await api.post("/api/exchange", {
-      listing_id: skill.listing_id,
-    });
-
-    setCanRate(true);
-    toast.success("Request sent! You can now rate this skill.");
-  } catch (err) {
-    console.error("Send request error:", err);
-    toast.error("Failed to send request");
-  }
-};
+    try {
+      await api.post("/api/exchange", { listing_id: skill.listing_id });
+      setCanRate(true);
+      toast.success("Request sent! You can now rate this skill.");
+    } catch (err) {
+      console.error("Send request error:", err);
+      toast.error("Failed to send request");
+    }
+  };
 
   // -----------------------------
   // Submit rating
@@ -76,6 +73,23 @@ const sendRequest = async () => {
     }
   };
 
+  // -----------------------------
+  // Delete skill
+  // -----------------------------
+  const deleteSkill = async () => {
+    if (!window.confirm("Are you sure you want to delete this skill?")) return;
+
+    try {
+      await api.delete(`/api/user/skills/${skillId}`);
+      toast.success("Skill deleted!");
+      if (onDelete) onDelete(skillId); // notify parent (Dashboard/Skills) to remove it
+      navigate("/dashboard"); // redirect after deletion
+    } catch (err) {
+      console.error("Delete skill error:", err);
+      toast.error("Failed to delete skill");
+    }
+  };
+
   if (loading) return <div className="p-10 text-center">Loading skill…</div>;
   if (!skill) return <div className="p-10 text-center text-gray-500">Skill not found</div>;
 
@@ -88,8 +102,24 @@ const sendRequest = async () => {
         ← Back
       </button>
 
-      <h1 className="text-2xl font-bold">{skill.title}</h1>
-      <p className="text-gray-600 mb-2">Offered by <strong>{skill.owner_name}</strong></p>
+      <div className="flex justify-between items-start">
+        <div>
+          <h1 className="text-2xl font-bold">{skill.title}</h1>
+          <p className="text-gray-600 mb-2">
+            Offered by <strong>{skill.owner_name}</strong>
+          </p>
+        </div>
+
+        {/* Delete button (owner only) */}
+        {skill.owner_id === currentUser?.id && (
+          <button
+            onClick={deleteSkill}
+            className="bg-red-500 text-white px-4 py-2 rounded"
+          >
+            Delete Skill
+          </button>
+        )}
+      </div>
 
       <div className="flex gap-2 mt-2 flex-wrap">
         {skill.tags.map((t, idx) => (

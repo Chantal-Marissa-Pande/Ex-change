@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../api/axios";
-import Skills from "./Skills";
 import toast from "react-hot-toast";
+import Skills from "./Skills";
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -11,7 +11,7 @@ export default function Dashboard() {
   // State
   // -----------------------------
   const [user, setUser] = useState(null);
-  const [profile, setProfile] = useState(null);
+  const [profile, setProfile] = useState({ skills: [] });
   const [requests, setRequests] = useState({ incoming: [], outgoing: [] });
   const [skills, setSkills] = useState([]);
 
@@ -43,6 +43,9 @@ export default function Dashboard() {
           incoming: requestsRes.data?.incoming || [],
           outgoing: requestsRes.data?.outgoing || [],
         });
+
+        // Load profile after user
+        await loadProfile(userRes.data.id);
       } catch (err) {
         console.error("Dashboard load error:", err);
         setError("Failed to load dashboard");
@@ -57,39 +60,28 @@ export default function Dashboard() {
   // -----------------------------
   // Load profile
   // -----------------------------
-  const loadProfile = async () => {
-    if (!user) return;
+  const loadProfile = async (userId = user?.id) => {
+    if (!userId) return;
     try {
-      const res = await api.get(`/api/user/${user.id}`);
-      setProfile({
-        ...res.data,
-        skills: res.data.skills || [],
-      });
+      const res = await api.get(`/api/user/${userId}`);
+      const data = res.data;
+
+      // Ensure skills array and tags
+      const skillsWithTags = (data.skills || []).map((s) => ({
+        ...s,
+        tags: Array.isArray(s.tags)
+          ? s.tags
+          : typeof s.tags === "string"
+          ? s.tags.split(",").map((t) => t.trim())
+          : [],
+      }));
+
+      setProfile({ ...data, skills: skillsWithTags });
     } catch (err) {
       console.error("Profile load error:", err);
       toast.error("Failed to load profile");
     }
   };
-
-  // -----------------------------
-  // Load skills marketplace
-  // -----------------------------
-  const fetchSkills = async (q = "", tag = "") => {
-    try {
-      const res = await api.get("/api/skills", {
-        params: { q, tag },
-      });
-      setSkills(res.data || []);
-    } catch (err) {
-      console.error("Skills fetch error:", err);
-      toast.error("Failed to load skills");
-    }
-  };
-
-  useEffect(() => {
-    if (activeTab === "skills") fetchSkills(searchQuery, selectedTag);
-    if (activeTab === "profile" && !profile) loadProfile();
-  }, [activeTab]);
 
   // -----------------------------
   // Add skill
@@ -110,6 +102,17 @@ export default function Dashboard() {
         .map((t) => t.trim())
         .filter(Boolean);
 
+      // Optimistic UI: add skill locally before server responds
+      const tempSkill = {
+        id: Date.now(),
+        title: newSkillTitle,
+        tags: tagsArray,
+      };
+      setProfile((prev) => ({
+        ...prev,
+        skills: [...prev.skills, tempSkill],
+      }));
+
       await api.post("/api/user/skills", {
         title: newSkillTitle,
         tags: tagsArray,
@@ -120,12 +123,41 @@ export default function Dashboard() {
       setNewSkillTitle("");
       setNewSkillTags("");
 
+      // Reload profile to sync with server
       loadProfile();
     } catch (err) {
       console.error("Add skill error:", err);
       toast.error("Failed to add skill");
+
+      // rollback optimistic update
+      setProfile((prev) => ({
+        ...prev,
+        skills: prev.skills.filter((s) => s.id !== tempSkill.id),
+      }));
     } finally {
       setAddingSkill(false);
+    }
+  };
+
+  // -----------------------------
+  // Delete skill
+  // -----------------------------
+  const handleDeleteSkill = async (skillId) => {
+    // Optimistic UI
+    const originalSkills = profile.skills;
+    setProfile((prev) => ({
+      ...prev,
+      skills: prev.skills.filter((s) => s.id !== skillId),
+    }));
+
+    try {
+      await api.delete(`/api/user/skills/${skillId}`);
+      toast.success("Skill deleted!");
+    } catch (err) {
+      console.error("Delete skill error:", err);
+      toast.error("Failed to delete skill");
+      // rollback
+      setProfile((prev) => ({ ...prev, skills: originalSkills }));
     }
   };
 
@@ -145,9 +177,7 @@ export default function Dashboard() {
       <div className="max-w-6xl mx-auto">
         {/* Header */}
         <div className="flex justify-between items-center mb-6">
-          <h1 className="text-3xl font-bold">
-            Welcome, {user?.name || "User"} 👋
-          </h1>
+          <h1 className="text-3xl font-bold">Welcome, {user?.name || "User"} 👋</h1>
           <button
             onClick={handleLogout}
             className="bg-red-500 text-white px-4 py-2 rounded"
@@ -163,9 +193,7 @@ export default function Dashboard() {
               key={tab}
               onClick={() => setActiveTab(tab)}
               className={`px-4 py-2 rounded ${
-                activeTab === tab
-                  ? "bg-blue-600 text-white"
-                  : "bg-gray-300"
+                activeTab === tab ? "bg-blue-600 text-white" : "bg-gray-300"
               }`}
             >
               {tab.charAt(0).toUpperCase() + tab.slice(1)}
@@ -177,7 +205,7 @@ export default function Dashboard() {
         {activeTab === "skills" && (
           <Skills
             currentUser={user}
-            skills={skills}
+            skills={skills || []}
             setSkills={setSkills}
             searchQuery={searchQuery}
             setSearchQuery={setSearchQuery}
@@ -196,9 +224,27 @@ export default function Dashboard() {
             <div>
               <strong>My Skills:</strong>
               {profile?.skills?.length ? (
-                <ul className="list-disc list-inside mt-2">
+                <ul className="list-disc list-inside mt-2 space-y-2">
                   {profile.skills.map((skill) => (
-                    <li key={skill.id}>{skill.title}</li>
+                    <li key={skill.id} className="flex items-center gap-2">
+                      {skill.title}
+                      <div className="flex gap-1 ml-2">
+                        {skill.tags.map((t, idx) => (
+                          <span
+                            key={`${skill.id}-tag-${idx}`}
+                            className="text-xs bg-gray-200 px-2 py-1 rounded-full"
+                          >
+                            {t}
+                          </span>
+                        ))}
+                      </div>
+                      <button
+                        onClick={() => handleDeleteSkill(skill.id)}
+                        className="ml-auto text-red-500 hover:underline text-sm"
+                      >
+                        Delete
+                      </button>
+                    </li>
                   ))}
                 </ul>
               ) : (
@@ -276,16 +322,13 @@ export default function Dashboard() {
         {activeTab === "analytics" && (
           <div className="bg-white p-6 rounded shadow space-y-2">
             <p>
-              <strong>Total Skills:</strong>{" "}
-              {profile?.skills?.length || 0}
+              <strong>Total Skills:</strong> {profile?.skills?.length || 0}
             </p>
             <p>
-              <strong>Incoming Requests:</strong>{" "}
-              {requests?.incoming?.length || 0}
+              <strong>Incoming Requests:</strong> {requests?.incoming?.length || 0}
             </p>
             <p>
-              <strong>Outgoing Requests:</strong>{" "}
-              {requests?.outgoing?.length || 0}
+              <strong>Outgoing Requests:</strong> {requests?.outgoing?.length || 0}
             </p>
           </div>
         )}
