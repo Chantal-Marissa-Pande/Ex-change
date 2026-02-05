@@ -33,7 +33,6 @@ router.get("/", async (req, res) => {
       params.push(`%${q}%`);
       query += ` AND s.title ILIKE $${params.length}`;
     }
-
     if (tag) {
       params.push(`%${tag}%`);
       query += ` AND s.tags ILIKE $${params.length}`;
@@ -44,11 +43,7 @@ router.get("/", async (req, res) => {
     const skills = rows.map((s) => ({
       id: s.id,
       title: s.title,
-      tags: s.tags
-        ? Array.isArray(s.tags)
-          ? s.tags
-          : s.tags.split(",").map((t) => t.trim())
-        : [],
+      tags: s.tags ? s.tags.split(",").map((t) => t.trim()) : [],
       owner_id: s.owner_id,
       owner_name: s.owner_name,
       exchange_count: parseInt(s.exchange_count, 10),
@@ -80,13 +75,9 @@ router.get("/:skillId", async (req, res) => {
     );
 
     if (!rows[0]) return res.status(404).json({ error: "Skill not found" });
-    const skill = rows[0];
 
-    skill.tags = skill.tags
-      ? Array.isArray(skill.tags)
-        ? skill.tags
-        : skill.tags.split(",").map((t) => t.trim())
-      : [];
+    const skill = rows[0];
+    skill.tags = skill.tags ? skill.tags.split(",").map((t) => t.trim()) : [];
     skill.messages = skill.messages || [];
     skill.ratings = skill.ratings || [];
 

@@ -5,129 +5,152 @@ import Skills from "./Skills";
 import toast from "react-hot-toast";
 
 export default function Dashboard() {
+  const navigate = useNavigate();
+
+  // -----------------------------
+  // State
+  // -----------------------------
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
   const [requests, setRequests] = useState({ incoming: [], outgoing: [] });
+  const [skills, setSkills] = useState([]);
+
   const [activeTab, setActiveTab] = useState("skills");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const [skills, setSkills] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedTag, setSelectedTag] = useState("");
 
-  const navigate = useNavigate();
+  // Add skill form
+  const [newSkillTitle, setNewSkillTitle] = useState("");
+  const [newSkillTags, setNewSkillTags] = useState("");
+  const [addingSkill, setAddingSkill] = useState(false);
 
   // -----------------------------
-  // Load dashboard user info + requests
+  // Load user + requests
   // -----------------------------
-  const loadDashboard = async () => {
-    setLoading(true);
-    try {
-      const [userRes, requestsRes] = await Promise.all([
-        api.get("/api/user/me"),
-        api.get("/api/user/requests").catch(() => ({ data: { incoming: [], outgoing: [] } })),
-      ]);
-
-      setUser(userRes.data);
-      setRequests(requestsRes.data || { incoming: [], outgoing: [] });
-    } catch (err) {
-      console.error("Dashboard load error:", err);
-      setError("Failed to load dashboard");
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
+    const loadDashboard = async () => {
+      try {
+        const [userRes, requestsRes] = await Promise.all([
+          api.get("/api/user/me"),
+          api.get("/api/user/requests"),
+        ]);
+
+        setUser(userRes.data);
+        setRequests({
+          incoming: requestsRes.data?.incoming || [],
+          outgoing: requestsRes.data?.outgoing || [],
+        });
+      } catch (err) {
+        console.error("Dashboard load error:", err);
+        setError("Failed to load dashboard");
+      } finally {
+        setLoading(false);
+      }
+    };
+
     loadDashboard();
   }, []);
 
   // -----------------------------
-  // Load profile skills when profile tab is active
+  // Load profile
   // -----------------------------
   const loadProfile = async () => {
     if (!user) return;
     try {
       const res = await api.get(`/api/user/${user.id}`);
-      const skillsWithTags = res.data.skills.map((s) => ({
-        ...s,
-        tags: s.tags
-          ? Array.isArray(s.tags)
-            ? s.tags
-            : s.tags.split(",").map((t) => t.trim())
-          : [],
-      }));
-      setProfile({ ...res.data, skills: skillsWithTags });
+      setProfile({
+        ...res.data,
+        skills: res.data.skills || [],
+      });
     } catch (err) {
       console.error("Profile load error:", err);
       toast.error("Failed to load profile");
     }
   };
 
+  // -----------------------------
+  // Load skills marketplace
+  // -----------------------------
+  const fetchSkills = async (q = "", tag = "") => {
+    try {
+      const res = await api.get("/api/skills", {
+        params: { q, tag },
+      });
+      setSkills(res.data || []);
+    } catch (err) {
+      console.error("Skills fetch error:", err);
+      toast.error("Failed to load skills");
+    }
+  };
+
   useEffect(() => {
-    if (activeTab === "profile" && !profile) loadProfile();
     if (activeTab === "skills") fetchSkills(searchQuery, selectedTag);
-  }, [activeTab, user]);
+    if (activeTab === "profile" && !profile) loadProfile();
+  }, [activeTab]);
+
+  // -----------------------------
+  // Add skill
+  // -----------------------------
+  const handleAddSkill = async (e) => {
+    e.preventDefault();
+
+    if (!newSkillTitle.trim()) {
+      toast.error("Skill title is required");
+      return;
+    }
+
+    try {
+      setAddingSkill(true);
+
+      const tagsArray = newSkillTags
+        .split(",")
+        .map((t) => t.trim())
+        .filter(Boolean);
+
+      await api.post("/api/user/skills", {
+        title: newSkillTitle,
+        tags: tagsArray,
+      });
+
+      toast.success("Skill added!");
+
+      setNewSkillTitle("");
+      setNewSkillTags("");
+
+      loadProfile();
+    } catch (err) {
+      console.error("Add skill error:", err);
+      toast.error("Failed to add skill");
+    } finally {
+      setAddingSkill(false);
+    }
+  };
 
   // -----------------------------
   // Logout
   // -----------------------------
   const handleLogout = () => {
-    setUser(null);
-    setProfile(null);
-    toast.success("Logged out successfully!");
+    localStorage.removeItem("token");
     navigate("/login");
   };
 
-  // -----------------------------
-  // Add skill
-  // -----------------------------
-  const handleAddSkill = async (title, tags) => {
-    try {
-      await api.post("/api/user/add-skill", { title, tags });
-      toast.success("Skill added!");
-      loadProfile();
-    } catch (err) {
-      console.error("Add skill error:", err);
-      toast.error("Failed to add skill.");
-    }
-  };
-
-  // -----------------------------
-  // Fetch skills for Marketplace tab
-  // -----------------------------
-  const fetchSkills = async (query = "", tag = "") => {
-    try {
-      const res = await api.get("/api/skills", { params: { q: query, tag } });
-      const data = res.data.map((skill) => ({
-        ...skill,
-        tags: skill.tags
-          ? Array.isArray(skill.tags)
-            ? skill.tags
-            : skill.tags.split(",").map((t) => t.trim())
-          : [],
-        exchange_count: skill.exchange_count || 0,
-      }));
-      setSkills(data);
-    } catch (err) {
-      console.error("Fetch skills error:", err);
-      toast.error("Failed to load skills.");
-    }
-  };
-
   if (loading) return <div className="p-10 text-center">Loading…</div>;
-  if (error) return <div className="p-10 text-center text-red-600">{error}</div>;
+  if (error) return <div className="p-10 text-center text-red-500">{error}</div>;
 
   return (
-    <div className="min-h-screen bg-background p-6">
+    <div className="min-h-screen bg-gray-100 p-6">
       <div className="max-w-6xl mx-auto">
-        {/* Greeting + Logout */}
+        {/* Header */}
         <div className="flex justify-between items-center mb-6">
-          <h1 className="text-3xl font-bold">Welcome, {user.name} 👋</h1>
+          <h1 className="text-3xl font-bold">
+            Welcome, {user?.name || "User"} 👋
+          </h1>
           <button
             onClick={handleLogout}
-            className="bg-red-500 text-white px-4 py-2 rounded-md hover:bg-red-600"
+            className="bg-red-500 text-white px-4 py-2 rounded"
           >
             Logout
           </button>
@@ -135,156 +158,138 @@ export default function Dashboard() {
 
         {/* Tabs */}
         <div className="flex gap-3 mb-6">
-          {[
-            { id: "skills", label: "Skills Marketplace" },
-            { id: "profile", label: "My Profile" },
-            { id: "requests", label: "Requests" },
-            { id: "analytics", label: "Analytics" },
-          ].map((tab) => (
+          {["skills", "profile", "requests", "analytics"].map((tab) => (
             <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`px-4 py-2 rounded-lg font-medium ${
-                activeTab === tab.id ? "bg-primary text-white" : "bg-gray-200"
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`px-4 py-2 rounded ${
+                activeTab === tab
+                  ? "bg-blue-600 text-white"
+                  : "bg-gray-300"
               }`}
             >
-              {tab.label}
+              {tab.charAt(0).toUpperCase() + tab.slice(1)}
             </button>
           ))}
         </div>
 
-        {/* Skills Marketplace */}
+        {/* ---------------- Skills Marketplace ---------------- */}
         {activeTab === "skills" && (
           <Skills
             currentUser={user}
+            skills={skills}
+            setSkills={setSkills}
             searchQuery={searchQuery}
             setSearchQuery={setSearchQuery}
             selectedTag={selectedTag}
             setSelectedTag={setSelectedTag}
-            skills={skills}
-            setSkills={setSkills}
           />
         )}
 
-        {/* Profile */}
-        {activeTab === "profile" && profile && (
-          <section className="bg-white p-6 rounded-xl shadow space-y-4">
+        {/* ---------------- Profile ---------------- */}
+        {activeTab === "profile" && (
+          <div className="bg-white p-6 rounded shadow space-y-4">
             <p>
-              <strong>Email:</strong> {user.email}
+              <strong>Email:</strong> {user?.email}
             </p>
-            <p>
-              <strong>My Skills:</strong>{" "}
-              {profile.skills.length ? profile.skills.map((s) => s.title).join(", ") : "None yet"}
-            </p>
-            <AddSkillForm onAddSkill={handleAddSkill} />
-          </section>
+
+            <div>
+              <strong>My Skills:</strong>
+              {profile?.skills?.length ? (
+                <ul className="list-disc list-inside mt-2">
+                  {profile.skills.map((skill) => (
+                    <li key={skill.id}>{skill.title}</li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-gray-500 mt-1">No skills added yet</p>
+              )}
+            </div>
+
+            {/* Add Skill */}
+            <form onSubmit={handleAddSkill} className="mt-4 space-y-3">
+              <h3 className="font-semibold text-lg">Add a Skill</h3>
+
+              <input
+                type="text"
+                placeholder="Skill title (e.g. Web Design)"
+                value={newSkillTitle}
+                onChange={(e) => setNewSkillTitle(e.target.value)}
+                className="w-full border p-2 rounded"
+              />
+
+              <input
+                type="text"
+                placeholder="Tags (comma separated)"
+                value={newSkillTags}
+                onChange={(e) => setNewSkillTags(e.target.value)}
+                className="w-full border p-2 rounded"
+              />
+
+              <button
+                type="submit"
+                disabled={addingSkill}
+                className="bg-blue-600 text-white px-4 py-2 rounded disabled:opacity-50"
+              >
+                {addingSkill ? "Adding..." : "Add Skill"}
+              </button>
+            </form>
+          </div>
         )}
 
-        {/* Requests */}
+        {/* ---------------- Requests ---------------- */}
         {activeTab === "requests" && (
-          <section className="bg-white p-6 rounded-xl shadow">
-            <h2 className="text-xl font-semibold mb-4">Incoming Requests</h2>
-            {requests.incoming.length ? (
-              <ul className="space-y-3">
-                {requests.incoming.map((r) => (
-                  <li
-                    key={r.exchange_id}
-                    className="flex justify-between bg-gray-100 p-4 rounded-lg"
-                  >
-                    <span>
-                      <strong>{r.requester_name}</strong> wants <em>{r.skill_requested}</em>
-                    </span>
-                    <span className="text-sm text-gray-500">{r.status}</span>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p>No incoming requests.</p>
-            )}
+          <div className="bg-white p-6 rounded shadow space-y-6">
+            <div>
+              <h2 className="text-xl font-semibold mb-2">Incoming Requests</h2>
+              {requests?.incoming?.length ? (
+                <ul className="space-y-2">
+                  {requests.incoming.map((r) => (
+                    <li key={r.exchange_id} className="bg-gray-100 p-3 rounded">
+                      {r.requester_name} wants <b>{r.skill_requested}</b>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p>No incoming requests</p>
+              )}
+            </div>
 
-            <h2 className="text-xl font-semibold mt-6 mb-4">Outgoing Requests</h2>
-            {requests.outgoing.length ? (
-              <ul className="space-y-3">
-                {requests.outgoing.map((r) => (
-                  <li
-                    key={r.exchange_id}
-                    className="flex justify-between bg-gray-100 p-4 rounded-lg"
-                  >
-                    <span>
-                      You requested <em>{r.skill_requested}</em> from <strong>{r.recipient_name}</strong>
-                    </span>
-                    <span className="text-sm text-gray-500">{r.status}</span>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p>No outgoing requests.</p>
-            )}
-          </section>
+            <div>
+              <h2 className="text-xl font-semibold mb-2">Outgoing Requests</h2>
+              {requests?.outgoing?.length ? (
+                <ul className="space-y-2">
+                  {requests.outgoing.map((r) => (
+                    <li key={r.exchange_id} className="bg-gray-100 p-3 rounded">
+                      You requested <b>{r.skill_requested}</b>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p>No outgoing requests</p>
+              )}
+            </div>
+          </div>
         )}
 
-        {/* Analytics */}
+        {/* ---------------- Analytics ---------------- */}
         {activeTab === "analytics" && (
-          <section className="bg-white p-6 rounded-xl shadow">
-            <h2 className="text-xl font-semibold mb-4">Your Dashboard Analytics</h2>
+          <div className="bg-white p-6 rounded shadow space-y-2">
             <p>
-              Total Skills Offered: <strong>{profile?.skills?.length || 0}</strong>
+              <strong>Total Skills:</strong>{" "}
+              {profile?.skills?.length || 0}
             </p>
             <p>
-              Incoming Requests: <strong>{requests.incoming.length}</strong>
+              <strong>Incoming Requests:</strong>{" "}
+              {requests?.incoming?.length || 0}
             </p>
             <p>
-              Outgoing Requests: <strong>{requests.outgoing.length}</strong>
+              <strong>Outgoing Requests:</strong>{" "}
+              {requests?.outgoing?.length || 0}
             </p>
-          </section>
+          </div>
         )}
       </div>
     </div>
-  );
-}
-
-// -----------------
-// Add Skill Form Component
-// -----------------
-function AddSkillForm({ onAddSkill }) {
-  const [title, setTitle] = useState("");
-  const [tags, setTags] = useState("");
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (!title) return;
-    const tagsArray = tags
-      .split(",")
-      .map((t) => t.trim())
-      .filter(Boolean);
-    onAddSkill(title, tagsArray);
-    setTitle("");
-    setTags("");
-  };
-
-  return (
-    <form onSubmit={handleSubmit} className="mt-4 space-y-2">
-      <h3 className="font-semibold">Add a Skill</h3>
-      <input
-        type="text"
-        placeholder="Skill title"
-        value={title}
-        onChange={(e) => setTitle(e.target.value)}
-        className="border p-2 rounded w-full"
-      />
-      <input
-        type="text"
-        placeholder="Tags (comma separated)"
-        value={tags}
-        onChange={(e) => setTags(e.target.value)}
-        className="border p-2 rounded w-full"
-      />
-      <button
-        type="submit"
-        className="bg-primary text-white px-4 py-2 rounded-md"
-      >
-        Add Skill
-      </button>
-    </form>
   );
 }

@@ -3,7 +3,10 @@ const router = express.Router();
 const pool = require("../config/db");
 const authenticate = require("../middleware/authenticate");
 
+// --------------------
+// Create a new exchange request
 // POST /api/exchange
+// --------------------
 router.post("/", authenticate, async (req, res) => {
   try {
     const { listing_id } = req.body;
