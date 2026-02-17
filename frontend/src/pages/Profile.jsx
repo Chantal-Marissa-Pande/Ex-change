@@ -26,26 +26,26 @@ export default function Profile() {
     try {
       setLoading(true);
 
+      // Fetch user data
       const userRes = await api.get(`/api/user/${userId}`);
       const userData = userRes.data;
 
+      // Ensure tags are arrays
       userData.skills =
         userData.skills?.map((s) => ({
           ...s,
-          tags: Array.isArray(s.tags)
-            ? s.tags
-            : typeof s.tags === "string"
-            ? s.tags.split(",").map((t) => t.trim())
-            : [],
+          tags: Array.isArray(s.tags) ? s.tags : [],
         })) || [];
 
       setUser(userData);
 
+      // Fetch incoming requests
       const incomingRes = await api
         .get(`/api/user/${userId}/requests/incoming`)
         .catch(() => ({ data: [] }));
       setIncomingRequests(incomingRes.data || []);
 
+      // Fetch outgoing requests
       const outgoingRes = await api
         .get(`/api/user/${userId}/requests/outgoing`)
         .catch(() => ({ data: [] }));
@@ -77,6 +77,7 @@ export default function Profile() {
     try {
       setAddingSkill(true);
 
+      // Convert tags to array
       const tagsArray = newSkillTags
         .split(",")
         .map((t) => t.trim())
@@ -88,11 +89,10 @@ export default function Profile() {
       });
 
       toast.success("Skill added!");
-
       setNewSkillTitle("");
       setNewSkillTags("");
 
-      fetchProfile();
+      fetchProfile(); // refresh profile
     } catch (err) {
       console.error("Add skill error:", err);
       toast.error("Failed to add skill");
@@ -102,14 +102,32 @@ export default function Profile() {
   };
 
   // -----------------------------
+  // Delete skill
+  // -----------------------------
+  const handleDeleteSkill = async (skillId) => {
+    const prevSkills = [...user.skills];
+    setUser((u) => ({
+      ...u,
+      skills: u.skills.filter((s) => s.id !== skillId),
+    }));
+
+    try {
+      await api.delete(`/api/user/skills/${skillId}`);
+      toast.success("Skill deleted!");
+    } catch (err) {
+      console.error("Delete skill error:", err);
+      toast.error("Failed to delete skill");
+      setUser((u) => ({ ...u, skills: prevSkills })); // rollback
+    }
+  };
+
+  // -----------------------------
   // Render guards
   // -----------------------------
   if (loading) return <div className="p-10 text-center">Loading profile…</div>;
   if (error) return <div className="p-10 text-center text-red-600">{error}</div>;
   if (!user)
-    return (
-      <div className="p-10 text-center text-gray-500">User not found.</div>
-    );
+    return <div className="p-10 text-center text-gray-500">User not found.</div>;
 
   return (
     <div className="min-h-screen bg-background p-8">
@@ -129,9 +147,7 @@ export default function Profile() {
 
         <p className="text-gray-600">
           <strong>Skills:</strong>{" "}
-          {user.skills.length
-            ? user.skills.map((s) => s.title).join(", ")
-            : "None yet"}
+          {user.skills.length ? user.skills.map((s) => s.title).join(", ") : "None yet"}
         </p>
 
         {user.skills.length > 0 && (
@@ -153,7 +169,6 @@ export default function Profile() {
       {/* ---------------- Add Skill ---------------- */}
       <section className="bg-white p-6 rounded-xl shadow mb-6">
         <h2 className="text-xl font-semibold mb-4">Add a Skill</h2>
-
         <form onSubmit={handleAddSkill} className="space-y-3">
           <input
             type="text"
@@ -165,7 +180,7 @@ export default function Profile() {
 
           <input
             type="text"
-            placeholder="Tags (comma separated)"
+            placeholder="Tags (comma separated, e.g. react, frontend)"
             value={newSkillTags}
             onChange={(e) => setNewSkillTags(e.target.value)}
             className="w-full border p-2 rounded"
@@ -192,8 +207,7 @@ export default function Profile() {
                 className="flex justify-between bg-gray-100 p-4 rounded-lg"
               >
                 <span>
-                  <strong>{r.requester_name}</strong> wants{" "}
-                  <em>{r.skill_requested}</em>
+                  <strong>{r.requester_name}</strong> wants <em>{r.skill_requested}</em>
                 </span>
                 <span className="text-gray-500">
                   {new Date(r.created_at).toLocaleDateString()}
@@ -217,8 +231,7 @@ export default function Profile() {
                 className="flex justify-between bg-gray-100 p-4 rounded-lg"
               >
                 <span>
-                  Requested <em>{r.skill_offered}</em> from{" "}
-                  <strong>{r.recipient_name}</strong>
+                  Requested <em>{r.skill_offered}</em> from <strong>{r.recipient_name}</strong>
                 </span>
                 <span className="text-gray-500">
                   {new Date(r.created_at).toLocaleDateString()}

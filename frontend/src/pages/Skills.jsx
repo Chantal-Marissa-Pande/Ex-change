@@ -3,39 +3,34 @@ import { useNavigate } from "react-router-dom";
 import api from "../api/axios";
 import toast from "react-hot-toast";
 
-export default function Skills({
-  currentUser,
-  skills,
-  setSkills,
-  searchQuery,
-  setSearchQuery,
-  selectedTag,
-  setSelectedTag,
-}) {
+export default function Skills({ currentUser }) {
   const navigate = useNavigate();
+  const [skills, setSkills] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedTag, setSelectedTag] = useState("");
   const [tags, setTags] = useState([]);
 
   const fetchSkills = async (query = "", tag = "") => {
     try {
       setLoading(true);
-      const res = await api.get("/api/skills", { params: { q: query, tag } });
+      const res = await api.get("/skills", { params: { q: query, tag } });
 
       const data = res.data.map((skill) => ({
         ...skill,
         tags: Array.isArray(skill.tags)
-          ? skill.tags
-          : typeof skill.tags === "string"
-          ? skill.tags.split(",").map((t) => t.trim())
+          ? skill.tags.map((t) => t.replace(/[^\w\s]/g, "").trim())
+          : skill.tags
+          ? skill.tags.split(",").map((t) => t.replace(/[^\w\s]/g, "").trim())
           : [],
         exchange_count: skill.exchange_count || 0,
       }));
 
       setSkills(data);
 
-      // Extract unique tags
+      // Collect unique tags
       const allTags = new Set();
-      data.forEach((skill) => skill.tags.forEach((t) => allTags.add(t)));
+      data.forEach((s) => s.tags.forEach((t) => allTags.add(t)));
       setTags([...allTags]);
     } catch (err) {
       console.error("Error fetching skills:", err);
@@ -45,103 +40,50 @@ export default function Skills({
     }
   };
 
-  // -----------------------------
-  // Delete skill
-  // -----------------------------
-  const handleDeleteSkill = async (skillId) => {
-    // Optimistic UI: remove locally first
-    const prevSkills = [...skills];
-    setSkills(skills.filter((s) => s.id !== skillId));
-
-    try {
-      await api.delete(`/api/user/skills/${skillId}`);
-      toast.success("Skill deleted!");
-    } catch (err) {
-      console.error("Delete skill error:", err);
-      toast.error("Failed to delete skill");
-      setSkills(prevSkills); // rollback
-    }
-  };
-
   useEffect(() => {
     fetchSkills();
   }, []);
 
+  const handleDeleteSkill = async (skillId) => {
+    const prevSkills = [...skills];
+    setSkills(skills.filter((s) => s.id !== skillId));
+    try {
+      await api.delete(`/users/skills/${skillId}`);
+      toast.success("Skill deleted!");
+    } catch (err) {
+      console.error("Delete skill error:", err);
+      toast.error("Failed to delete skill");
+      setSkills(prevSkills);
+    }
+  };
+
   if (loading) return <div className="p-10 text-center">Loading skills…</div>;
-  if (!skills?.length)
-    return <div className="p-10 text-center text-gray-500">No skills available.</div>;
+  if (!skills.length) return <div className="p-10 text-center text-gray-500">No skills available.</div>;
 
   return (
     <div>
-      {/* Search & filter */}
       <div className="mb-6 flex gap-2">
-        <input
-          type="text"
-          placeholder="Search skills..."
-          className="border rounded px-4 py-2 flex-1"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && fetchSkills(searchQuery, selectedTag)}
-        />
-        <select
-          value={selectedTag}
-          onChange={(e) => setSelectedTag(e.target.value)}
-          className="border rounded px-4 py-2"
-        >
+        <input type="text" placeholder="Search skills..." value={searchQuery} onChange={(e)=>setSearchQuery(e.target.value)} onKeyDown={(e)=>e.key==="Enter" && fetchSkills(searchQuery, selectedTag)} className="border rounded px-4 py-2 flex-1"/>
+        <select value={selectedTag} onChange={(e)=>setSelectedTag(e.target.value)} className="border rounded px-4 py-2">
           <option value="">All Tags</option>
-          {tags.map((tag) => (
-            <option key={tag} value={tag}>
-              {tag}
-            </option>
-          ))}
+          {tags.map(tag => <option key={tag} value={tag}>{tag}</option>)}
         </select>
-        <button
-          onClick={() => fetchSkills(searchQuery, selectedTag)}
-          className="bg-primary text-white px-4 py-2 rounded hover:bg-green-700"
-        >
-          Search
-        </button>
+        <button onClick={()=>fetchSkills(searchQuery, selectedTag)} className="bg-primary text-white px-4 py-2 rounded hover:bg-green-700">Search</button>
       </div>
 
-      {/* Skills grid */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {skills.map((skill, idx) => (
-          <div
-            key={`${skill.id}-${idx}`}
-            className="p-4 bg-white rounded-xl shadow cursor-pointer hover:shadow-lg transition"
-          >
-            <div
-              onClick={() => navigate(`/skills/${skill.id}`)}
-              className="cursor-pointer"
-            >
+        {skills.map(skill => (
+          <div key={skill.id} className="p-4 bg-white rounded-xl shadow cursor-pointer hover:shadow-lg transition">
+            <div onClick={()=>navigate(`/skills/${skill.id}`)}>
               <h2 className="text-xl font-semibold mb-2">{skill.title}</h2>
-              <p className="text-gray-600">
-                Offered by <strong>{skill.owner_name}</strong>
-              </p>
-              <p className="text-gray-500 text-sm">
-                Exchanged {skill.exchange_count} times
-              </p>
-
+              <p className="text-gray-600">Offered by <strong>{skill.owner_name}</strong></p>
+              <p className="text-gray-500 text-sm">Exchanged {skill.exchange_count} times</p>
               <div className="flex gap-2 mt-2 flex-wrap">
-                {skill.tags.map((t, tagIdx) => (
-                  <span
-                    key={`${skill.id}-tag-${tagIdx}`}
-                    className="text-xs bg-gray-100 px-2 py-1 rounded-full"
-                  >
-                    {t}
-                  </span>
-                ))}
+                {skill.tags.map((t,i)=> <span key={i} className="text-xs bg-gray-100 px-2 py-1 rounded-full">{t}</span>)}
               </div>
             </div>
-
-            {/* Delete button (owner only) */}
             {skill.owner_id === currentUser?.id && (
-              <button
-                onClick={() => handleDeleteSkill(skill.id)}
-                className="mt-3 bg-red-500 text-white px-3 py-1 rounded text-sm"
-              >
-                Delete
-              </button>
+              <button onClick={()=>handleDeleteSkill(skill.id)} className="mt-3 bg-red-500 text-white px-3 py-1 rounded text-sm">Delete</button>
             )}
           </div>
         ))}

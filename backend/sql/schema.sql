@@ -1,4 +1,5 @@
 -- CLEAN RESET
+DROP TABLE IF EXISTS connections;
 DROP TABLE IF EXISTS messages;
 DROP TABLE IF EXISTS ratings;
 DROP TABLE IF EXISTS user_activity;
@@ -18,7 +19,7 @@ CREATE TABLE users (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- SKILLS (GLOBAL DEFINITIONS)
+-- SKILLS
 CREATE TABLE skills (
   id SERIAL PRIMARY KEY,
   title VARCHAR(100) NOT NULL UNIQUE,
@@ -35,17 +36,20 @@ CREATE TABLE skill_detail (
   level VARCHAR(50),
   years_experience INT,
   description TEXT,
+  active BOOLEAN DEFAULT TRUE,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   UNIQUE (user_id, skill_id)
 );
 
--- LISTINGS (USER POSTS EXCHANGE)
+-- LISTINGS
 CREATE TABLE listings (
   id SERIAL PRIMARY KEY,
   user_id INT REFERENCES users(id) ON DELETE CASCADE,
   skill_offered_detail_id INT REFERENCES skill_detail(id) ON DELETE CASCADE,
   skill_requested_id INT REFERENCES skills(id),
+  title VARCHAR(255),
   description TEXT,
+  status VARCHAR(20) DEFAULT 'active',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -55,6 +59,7 @@ CREATE TABLE exchanges (
   requester_id INT REFERENCES users(id) ON DELETE CASCADE,
   listing_id INT REFERENCES listings(id) ON DELETE CASCADE,
   status VARCHAR(20) DEFAULT 'pending',
+  message_count INT DEFAULT 0,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -79,11 +84,22 @@ CREATE TABLE ratings (
   UNIQUE(exchange_id, rater_id)
 );
 
--- USER ACTIVITY (AI)
+-- USER ACTIVITY
 CREATE TABLE user_activity (
   id SERIAL PRIMARY KEY,
   user_id INT REFERENCES users(id) ON DELETE CASCADE,
   action VARCHAR(50),
   skill_id INT REFERENCES skills(id),
+  details JSONB,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- CONNECTIONS
+CREATE TABLE connections (
+  id SERIAL PRIMARY KEY,
+  user_id INT REFERENCES users(id) ON DELETE CASCADE,
+  connected_user_id INT REFERENCES users(id) ON DELETE CASCADE,
+  status VARCHAR(20) DEFAULT 'pending', -- pending, accepted, rejected
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(user_id, connected_user_id)
 );
