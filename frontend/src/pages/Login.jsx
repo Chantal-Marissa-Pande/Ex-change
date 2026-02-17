@@ -21,17 +21,26 @@ export default function Login() {
 
     try {
       setLoading(true);
-      const res = await api.post("/api/auth/login", { email, password });
+
+      // ✅ FIXED (removed /api)
+      const res = await api.post("/auth/login", { email, password });
 
       localStorage.setItem("token", res.data.token);
       localStorage.setItem("user", JSON.stringify(res.data.user));
 
       toast.success("Login successful!");
       navigate("/dashboard");
+
     } catch (err) {
       console.error("LOGIN ERROR:", err);
-      setError(err.response?.data?.message || "Login failed");
-      toast.error(err.response?.data?.message || "Login failed");
+      const message =
+        err.response?.data?.error ||
+        err.response?.data?.message ||
+        "Login failed";
+
+      setError(message);
+      toast.error(message);
+
     } finally {
       setLoading(false);
     }

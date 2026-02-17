@@ -15,13 +15,17 @@ const skillRoutes = require("./routes/skill.routes");
 const exchangeRoutes = require("./routes/exchange.routes");
 const messageRoutes = require("./routes/messages.routes");
 const ratingRoutes = require("./routes/ratings.routes");
+const aiRoutes = require("./routes/ai.routes");
+const adminRoutes = require("./routes/admin.routes");;
 
-app.use("/api/exchange", exchangeRoutes);
 app.use("/api/auth", authRoutes);
-app.use("/api/user", userRoutes);
+app.use("/api/users", userRoutes);
 app.use("/api/skills", skillRoutes);
+app.use("/api/exchange", exchangeRoutes);
 app.use("/api/messages", messageRoutes);
 app.use("/api/ratings", ratingRoutes);
+app.use("/api/ai", aiRoutes);
+app.use("/api/admin", adminRoutes);
 
 app.get("/", (req, res) => {
   res.send("API is running");

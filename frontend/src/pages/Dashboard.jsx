@@ -1,73 +1,83 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../api/axios";
 import toast from "react-hot-toast";
 import Skills from "./Skills";
+import { Bar } from "react-chartjs-2";
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  Title,
+  Tooltip,
+  Legend,
+} from "chart.js";
+
+ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
 
 export default function Dashboard() {
   const navigate = useNavigate();
+  const messageEndRef = useRef(null);
 
   // -----------------------------
-  // State
+  // Core State
   // -----------------------------
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState({ skills: [] });
   const [requests, setRequests] = useState({ incoming: [], outgoing: [] });
   const [skills, setSkills] = useState([]);
-
   const [activeTab, setActiveTab] = useState("skills");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const [searchQuery, setSearchQuery] = useState("");
-  const [selectedTag, setSelectedTag] = useState("");
-
-  // Add skill form
-  const [newSkillTitle, setNewSkillTitle] = useState("");
-  const [newSkillTags, setNewSkillTags] = useState("");
-  const [addingSkill, setAddingSkill] = useState(false);
+  // -----------------------------
+  // Messaging State
+  // -----------------------------
+  const [messages, setMessages] = useState([]);
+  const [selectedExchange, setSelectedExchange] = useState(null);
+  const [newMessage, setNewMessage] = useState("");
 
   // -----------------------------
-  // Load user + requests
+  // Ratings State
   // -----------------------------
-  useEffect(() => {
-    const loadDashboard = async () => {
-      try {
-        const [userRes, requestsRes] = await Promise.all([
-          api.get("/api/user/me"),
-          api.get("/api/user/requests"),
-        ]);
-
-        setUser(userRes.data);
-        setRequests({
-          incoming: requestsRes.data?.incoming || [],
-          outgoing: requestsRes.data?.outgoing || [],
-        });
-
-        // Load profile after user
-        await loadProfile(userRes.data.id);
-      } catch (err) {
-        console.error("Dashboard load error:", err);
-        setError("Failed to load dashboard");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadDashboard();
-  }, []);
+  const [ratings, setRatings] = useState([]);
+  const [ratingValue, setRatingValue] = useState(5);
+  const [review, setReview] = useState("");
 
   // -----------------------------
-  // Load profile
+  // AI Recommendations State
   // -----------------------------
-  const loadProfile = async (userId = user?.id) => {
-    if (!userId) return;
+  const [recommendations, setRecommendations] = useState([]);
+
+  // -----------------------------
+  // Skill Editing State
+  // -----------------------------
+  const [editingSkillId, setEditingSkillId] = useState(null);
+  const [skillForm, setSkillForm] = useState({
+    title: "",
+    level: "",
+    years_experience: 0,
+    category: "",
+    description: "",
+    tags: [],
+  });
+
+  // -----------------------------
+  // Load Dashboard
+  // -----------------------------
+  const loadDashboard = async () => {
     try {
-      const res = await api.get(`/api/user/${userId}`);
-      const data = res.data;
+      const [userRes, requestsRes, ratingsRes, recRes] = await Promise.all([
+        api.get("/users/me"),
+        api.get("/users/requests"),
+        api.get("/users/ratings"),
+        api.get("/users/recommendations"),
+      ]);
 
-      // Ensure skills array and tags
-      const skillsWithTags = (data.skills || []).map((s) => ({
+      const userData = userRes.data;
+
+      const skillsWithTags = (userData.skills || []).map((s) => ({
         ...s,
         tags: Array.isArray(s.tags)
           ? s.tags
@@ -76,88 +86,83 @@ export default function Dashboard() {
           : [],
       }));
 
-      setProfile({ ...data, skills: skillsWithTags });
-    } catch (err) {
-      console.error("Profile load error:", err);
-      toast.error("Failed to load profile");
-    }
-  };
-
-  // -----------------------------
-  // Add skill
-  // -----------------------------
-  const handleAddSkill = async (e) => {
-    e.preventDefault();
-
-    if (!newSkillTitle.trim()) {
-      toast.error("Skill title is required");
-      return;
-    }
-
-    try {
-      setAddingSkill(true);
-
-      const tagsArray = newSkillTags
-        .split(",")
-        .map((t) => t.trim())
-        .filter(Boolean);
-
-      // Optimistic UI: add skill locally before server responds
-      const tempSkill = {
-        id: Date.now(),
-        title: newSkillTitle,
-        tags: tagsArray,
-      };
-      setProfile((prev) => ({
-        ...prev,
-        skills: [...prev.skills, tempSkill],
-      }));
-
-      await api.post("/api/user/skills", {
-        title: newSkillTitle,
-        tags: tagsArray,
+      setUser(userData);
+      setProfile({ ...userData, skills: skillsWithTags });
+      setRequests({
+        incoming: requestsRes.data?.incoming || [],
+        outgoing: requestsRes.data?.outgoing || [],
       });
-
-      toast.success("Skill added!");
-
-      setNewSkillTitle("");
-      setNewSkillTags("");
-
-      // Reload profile to sync with server
-      loadProfile();
+      setRatings(ratingsRes.data || []);
+      setRecommendations(recRes.data || []);
     } catch (err) {
-      console.error("Add skill error:", err);
-      toast.error("Failed to add skill");
-
-      // rollback optimistic update
-      setProfile((prev) => ({
-        ...prev,
-        skills: prev.skills.filter((s) => s.id !== tempSkill.id),
-      }));
+      console.error(err);
+      setError("Failed to load dashboard");
     } finally {
-      setAddingSkill(false);
+      setLoading(false);
     }
   };
 
+  useEffect(() => {
+    loadDashboard();
+  }, []);
+
   // -----------------------------
-  // Delete skill
+  // Messaging Functions
   // -----------------------------
-  const handleDeleteSkill = async (skillId) => {
-    // Optimistic UI
-    const originalSkills = profile.skills;
-    setProfile((prev) => ({
-      ...prev,
-      skills: prev.skills.filter((s) => s.id !== skillId),
-    }));
+  const loadMessages = async (exchangeId) => {
+    try {
+      const res = await api.get(`/api/messages/${exchangeId}`);
+      setMessages(res.data);
+      setSelectedExchange(exchangeId);
+      scrollToBottom();
+    } catch {
+      toast.error("Failed to load messages");
+    }
+  };
+
+  const sendMessage = async () => {
+    if (!newMessage.trim()) return;
 
     try {
-      await api.delete(`/api/user/skills/${skillId}`);
-      toast.success("Skill deleted!");
-    } catch (err) {
-      console.error("Delete skill error:", err);
-      toast.error("Failed to delete skill");
-      // rollback
-      setProfile((prev) => ({ ...prev, skills: originalSkills }));
+      await api.post("/api/messages", {
+        exchange_id: selectedExchange,
+        content: newMessage,
+      });
+      setNewMessage("");
+      loadMessages(selectedExchange);
+    } catch {
+      toast.error("Message failed");
+    }
+  };
+
+  const scrollToBottom = () => {
+    setTimeout(() => {
+      messageEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }, 100);
+  };
+
+  useEffect(() => {
+    if (!selectedExchange) return;
+    const interval = setInterval(() => loadMessages(selectedExchange), 5000);
+    return () => clearInterval(interval);
+  }, [selectedExchange]);
+
+  // -----------------------------
+  // Ratings Submission
+  // -----------------------------
+  const submitRating = async (exchangeId, ratedUserId) => {
+    try {
+      await api.post("/api/ratings", {
+        exchange_id: exchangeId,
+        rated_user_id: ratedUserId,
+        rating: ratingValue,
+        review,
+      });
+      toast.success("Rating submitted!");
+      setReview("");
+      loadDashboard();
+    } catch {
+      toast.error("Failed to submit rating");
     }
   };
 
@@ -169,31 +174,96 @@ export default function Dashboard() {
     navigate("/login");
   };
 
-  if (loading) return <div className="p-10 text-center">Loading…</div>;
-  if (error) return <div className="p-10 text-center text-red-500">{error}</div>;
+  // -----------------------------
+  // Skill Edit/Add
+  // -----------------------------
+  const startEditing = (skill) => {
+    setEditingSkillId(skill?.id || null);
+    setSkillForm(skill || { title: "", level: "", years_experience: 0, category: "", description: "", tags: [] });
+  };
+
+  const saveSkill = async () => {
+    try {
+      if (editingSkillId) {
+        await api.put(`/api/skills/${editingSkillId}`, skillForm);
+        toast.success("Skill updated!");
+      } else {
+        await api.post("/api/skills", skillForm);
+        toast.success("Skill added!");
+      }
+      setEditingSkillId(null);
+      loadDashboard();
+    } catch {
+      toast.error("Failed to save skill");
+    }
+  };
+
+  // -----------------------------
+  // Recommendation Actions
+  // -----------------------------
+  const handleConnect = async (recId) => {
+    try {
+      await api.post("/api/connections", { user_id: recId });
+      toast.success("Connection request sent!");
+    } catch {
+      toast.error("Failed to send connection request");
+    }
+  };
+
+  const viewSkillDetails = (rec) => {
+    navigate(`/skills/${rec.skill_id}`);
+  };
+
+  if (loading)
+    return <div className="p-10 text-center text-xl">Loading dashboard...</div>;
+  if (error)
+    return <div className="p-10 text-center text-red-500">{error}</div>;
+
+  const chartData = {
+    labels: profile.skills.map((s) => s.title),
+    datasets: [
+      {
+        label: "Years Experience",
+        data: profile.skills.map((s) => s.years_experience || 0),
+        backgroundColor: "rgba(59, 130, 246, 0.7)",
+      },
+    ],
+  };
 
   return (
     <div className="min-h-screen bg-gray-100 p-6">
       <div className="max-w-6xl mx-auto">
         {/* Header */}
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-3xl font-bold">Welcome, {user?.name || "User"} 👋</h1>
+        <div className="flex justify-between items-center mb-6 flex-wrap gap-2">
+          <h1 className="text-3xl font-bold">
+            Welcome, {user?.name || "User"} 👋
+          </h1>
           <button
             onClick={handleLogout}
-            className="bg-red-500 text-white px-4 py-2 rounded"
+            className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
           >
             Logout
           </button>
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-3 mb-6">
-          {["skills", "profile", "requests", "analytics"].map((tab) => (
+        <div className="flex gap-3 mb-6 flex-wrap">
+          {[
+            "skills",
+            "profile",
+            "requests",
+            "messages",
+            "ratings",
+            "recommendations",
+            "analytics",
+          ].map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className={`px-4 py-2 rounded ${
-                activeTab === tab ? "bg-blue-600 text-white" : "bg-gray-300"
+              className={`px-4 py-2 rounded transition-all duration-200 ${
+                activeTab === tab
+                  ? "bg-blue-600 text-white shadow"
+                  : "bg-gray-300 hover:bg-gray-400"
               }`}
             >
               {tab.charAt(0).toUpperCase() + tab.slice(1)}
@@ -201,135 +271,286 @@ export default function Dashboard() {
           ))}
         </div>
 
-        {/* ---------------- Skills Marketplace ---------------- */}
+        {/* Skills Marketplace */}
         {activeTab === "skills" && (
-          <Skills
-            currentUser={user}
-            skills={skills || []}
-            setSkills={setSkills}
-            searchQuery={searchQuery}
-            setSearchQuery={setSearchQuery}
-            selectedTag={selectedTag}
-            setSelectedTag={setSelectedTag}
-          />
+          <Skills currentUser={user} skills={skills} setSkills={setSkills} />
         )}
 
-        {/* ---------------- Profile ---------------- */}
+        {/* Profile */}
         {activeTab === "profile" && (
           <div className="bg-white p-6 rounded shadow space-y-4">
+            <p>
+              <strong>Name:</strong> {user?.name}
+            </p>
             <p>
               <strong>Email:</strong> {user?.email}
             </p>
 
-            <div>
-              <strong>My Skills:</strong>
-              {profile?.skills?.length ? (
-                <ul className="list-disc list-inside mt-2 space-y-2">
-                  {profile.skills.map((skill) => (
-                    <li key={skill.id} className="flex items-center gap-2">
-                      {skill.title}
-                      <div className="flex gap-1 ml-2">
-                        {skill.tags.map((t, idx) => (
+            <h3 className="font-semibold mt-4 mb-2">My Skills</h3>
+
+            {/* Add Skill Button */}
+            <button
+              onClick={() => startEditing(null)}
+              className="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 mb-2"
+            >
+              + Add Skill
+            </button>
+
+            {editingSkillId !== null || skillForm.title ? (
+              <div className="p-3 border rounded bg-gray-50 space-y-2 mb-2">
+                <input
+                  placeholder="Title"
+                  value={skillForm.title}
+                  onChange={(e) => setSkillForm({ ...skillForm, title: e.target.value })}
+                  className="w-full border p-1 rounded"
+                />
+                <input
+                  placeholder="Level"
+                  value={skillForm.level}
+                  onChange={(e) => setSkillForm({ ...skillForm, level: e.target.value })}
+                  className="w-full border p-1 rounded"
+                />
+                <input
+                  type="number"
+                  placeholder="Years Experience"
+                  value={skillForm.years_experience}
+                  onChange={(e) => setSkillForm({ ...skillForm, years_experience: +e.target.value })}
+                  className="w-full border p-1 rounded"
+                />
+                <input
+                  placeholder="Category"
+                  value={skillForm.category}
+                  onChange={(e) => setSkillForm({ ...skillForm, category: e.target.value })}
+                  className="w-full border p-1 rounded"
+                />
+                <textarea
+                  placeholder="Description"
+                  value={skillForm.description}
+                  onChange={(e) => setSkillForm({ ...skillForm, description: e.target.value })}
+                  className="w-full border p-1 rounded"
+                />
+                <input
+                  placeholder="Tags (comma separated)"
+                  value={skillForm.tags.join(", ")}
+                  onChange={(e) => setSkillForm({ ...skillForm, tags: e.target.value.split(",").map(t => t.trim()) })}
+                  className="w-full border p-1 rounded"
+                />
+                <div className="flex gap-2">
+                  <button
+                    onClick={saveSkill}
+                    className="bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600"
+                  >
+                    Save
+                  </button>
+                  <button
+                    onClick={() => setEditingSkillId(null)}
+                    className="bg-gray-300 px-3 py-1 rounded hover:bg-gray-400"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : null}
+
+            {profile.skills.length ? (
+              <ul className="space-y-2">
+                {profile.skills.map((skill) => (
+                  <li
+                    key={skill.id}
+                    className="bg-gray-100 p-3 rounded flex justify-between items-start gap-4"
+                  >
+                    <div>
+                      <p className="font-semibold">{skill.title} ({skill.level})</p>
+                      <p className="text-sm text-gray-600">
+                        {skill.category} | {skill.years_experience} yrs
+                      </p>
+                      <p className="text-sm text-gray-500">{skill.description}</p>
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {skill.tags.map((tag, idx) => (
                           <span
-                            key={`${skill.id}-tag-${idx}`}
-                            className="text-xs bg-gray-200 px-2 py-1 rounded-full"
+                            key={idx}
+                            className="bg-blue-200 text-blue-800 px-2 py-0.5 rounded text-xs"
                           >
-                            {t}
+                            {tag}
                           </span>
                         ))}
                       </div>
-                      <button
-                        onClick={() => handleDeleteSkill(skill.id)}
-                        className="ml-auto text-red-500 hover:underline text-sm"
-                      >
-                        Delete
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="text-gray-500 mt-1">No skills added yet</p>
-              )}
-            </div>
-
-            {/* Add Skill */}
-            <form onSubmit={handleAddSkill} className="mt-4 space-y-3">
-              <h3 className="font-semibold text-lg">Add a Skill</h3>
-
-              <input
-                type="text"
-                placeholder="Skill title (e.g. Web Design)"
-                value={newSkillTitle}
-                onChange={(e) => setNewSkillTitle(e.target.value)}
-                className="w-full border p-2 rounded"
-              />
-
-              <input
-                type="text"
-                placeholder="Tags (comma separated)"
-                value={newSkillTags}
-                onChange={(e) => setNewSkillTags(e.target.value)}
-                className="w-full border p-2 rounded"
-              />
-
-              <button
-                type="submit"
-                disabled={addingSkill}
-                className="bg-blue-600 text-white px-4 py-2 rounded disabled:opacity-50"
-              >
-                {addingSkill ? "Adding..." : "Add Skill"}
-              </button>
-            </form>
+                    </div>
+                    <button
+                      onClick={() => startEditing(skill)}
+                      className="bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600"
+                    >
+                      Edit
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p>No skills added yet</p>
+            )}
           </div>
         )}
 
-        {/* ---------------- Requests ---------------- */}
+        {/* Requests */}
         {activeTab === "requests" && (
-          <div className="bg-white p-6 rounded shadow space-y-6">
-            <div>
-              <h2 className="text-xl font-semibold mb-2">Incoming Requests</h2>
-              {requests?.incoming?.length ? (
-                <ul className="space-y-2">
-                  {requests.incoming.map((r) => (
-                    <li key={r.exchange_id} className="bg-gray-100 p-3 rounded">
-                      {r.requester_name} wants <b>{r.skill_requested}</b>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p>No incoming requests</p>
-              )}
-            </div>
+          <div className="bg-white p-6 rounded shadow space-y-4">
+            <h2 className="text-xl font-semibold">Incoming Requests</h2>
+            {requests.incoming.length ? (
+              requests.incoming.map((r) => (
+                <div
+                  key={r.exchange_id}
+                  className="flex justify-between items-center bg-gray-100 p-3 rounded"
+                >
+                  <div>
+                    {r.requester_name} wants <strong>{r.skill_requested}</strong>
+                  </div>
+                  <div className="flex gap-2">
+                    <button className="bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600">
+                      Accept
+                    </button>
+                    <button className="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600">
+                      Decline
+                    </button>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <p>No incoming requests</p>
+            )}
 
-            <div>
-              <h2 className="text-xl font-semibold mb-2">Outgoing Requests</h2>
-              {requests?.outgoing?.length ? (
-                <ul className="space-y-2">
-                  {requests.outgoing.map((r) => (
-                    <li key={r.exchange_id} className="bg-gray-100 p-3 rounded">
-                      You requested <b>{r.skill_requested}</b>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p>No outgoing requests</p>
-              )}
-            </div>
+            <h2 className="text-xl font-semibold mt-6">Outgoing Requests</h2>
+            {requests.outgoing.length ? (
+              requests.outgoing.map((r) => (
+                <div key={r.exchange_id} className="bg-gray-100 p-3 rounded">
+                  You requested <strong>{r.skill_requested}</strong>
+                </div>
+              ))
+            ) : (
+              <p>No outgoing requests</p>
+            )}
           </div>
         )}
 
-        {/* ---------------- Analytics ---------------- */}
+        {/* Messages */}
+        {activeTab === "messages" && (
+          <div className="bg-white p-6 rounded shadow">
+            {!selectedExchange ? (
+              <div className="space-y-2">
+                {[...requests.incoming, ...requests.outgoing].map((r) => (
+                  <button
+                    key={r.exchange_id}
+                    onClick={() => loadMessages(r.exchange_id)}
+                    className="block w-full text-left bg-gray-100 p-2 rounded hover:bg-gray-200"
+                  >
+                    Conversation #{r.exchange_id} with {r.requester_name || user.name}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="h-64 overflow-y-auto border p-3 rounded bg-gray-50">
+                  {messages.map((m) => (
+                    <div
+                      key={m.id}
+                      className={`p-1 ${
+                        m.sender_id === user.id
+                          ? "text-right text-white bg-blue-600 rounded ml-auto w-max"
+                          : "text-left bg-gray-200 rounded w-max"
+                      }`}
+                    >
+                      <strong>{m.sender_name}:</strong> {m.content}
+                    </div>
+                  ))}
+                  <div ref={messageEndRef} />
+                </div>
+
+                <div className="flex gap-2">
+                  <input
+                    value={newMessage}
+                    onChange={(e) => setNewMessage(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && sendMessage()}
+                    className="flex-1 border p-2 rounded"
+                    placeholder="Type your message..."
+                  />
+                  <button
+                    onClick={sendMessage}
+                    className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+                  >
+                    Send
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Ratings */}
+        {activeTab === "ratings" && (
+          <div className="bg-white p-6 rounded shadow space-y-3">
+            {ratings.length ? (
+              ratings.map((r) => (
+                <div key={r.id} className="border p-3 rounded">
+                  <p>
+                    ⭐ {r.score} - {r.comment}
+                  </p>
+                </div>
+              ))
+            ) : (
+              <p>No ratings yet</p>
+            )}
+          </div>
+        )}
+
+        {/* Recommendations */}
+        {activeTab === "recommendations" && (
+          <div className="bg-white p-6 rounded shadow space-y-3">
+            {recommendations.length ? (
+              recommendations.map((rec) => (
+                <div
+                  key={rec.id}
+                  className="border p-3 rounded flex justify-between items-center"
+                >
+                  <div>
+                    <strong>{rec.name}</strong>
+                    <div className="text-sm text-gray-600">
+                      {rec.years_experience} years experience
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleConnect(rec.id)}
+                      className="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700"
+                    >
+                      Connect
+                    </button>
+                    <button
+                      onClick={() => viewSkillDetails(rec)}
+                      className="bg-gray-300 px-3 py-1 rounded hover:bg-gray-400"
+                    >
+                      View Skill
+                    </button>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <p>No recommendations available</p>
+            )}
+          </div>
+        )}
+
+        {/* Analytics */}
         {activeTab === "analytics" && (
-          <div className="bg-white p-6 rounded shadow space-y-2">
-            <p>
-              <strong>Total Skills:</strong> {profile?.skills?.length || 0}
-            </p>
-            <p>
-              <strong>Incoming Requests:</strong> {requests?.incoming?.length || 0}
-            </p>
-            <p>
-              <strong>Outgoing Requests:</strong> {requests?.outgoing?.length || 0}
-            </p>
+          <div className="bg-white p-6 rounded shadow space-y-4">
+            <p>Total Skills: {profile.skills.length}</p>
+            <p>Incoming Requests: {requests.incoming.length}</p>
+            <p>Outgoing Requests: {requests.outgoing.length}</p>
+            <p>Total Ratings: {ratings.length}</p>
+
+            {profile.skills.length ? (
+              <div className="mt-4">
+                <Bar data={chartData} options={{ responsive: true }} />
+              </div>
+            ) : null}
           </div>
         )}
       </div>

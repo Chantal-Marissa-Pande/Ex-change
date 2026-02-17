@@ -1,4 +1,6 @@
 -- CLEAN RESET
+DROP TABLE IF EXISTS messages;
+DROP TABLE IF EXISTS ratings;
 DROP TABLE IF EXISTS user_activity;
 DROP TABLE IF EXISTS exchanges;
 DROP TABLE IF EXISTS listings;
@@ -12,6 +14,7 @@ CREATE TABLE users (
   name VARCHAR(100) NOT NULL,
   email VARCHAR(100) UNIQUE NOT NULL,
   password_hash VARCHAR(255) NOT NULL,
+  role VARCHAR(20) DEFAULT 'user',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -20,33 +23,33 @@ CREATE TABLE skills (
   id SERIAL PRIMARY KEY,
   title VARCHAR(100) NOT NULL UNIQUE,
   category VARCHAR(100),
-  tags TEXT, -- comma-separated: 'web,frontend,react'
+  tags TEXT,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- SKILL DETAILS (USER-SPECIFIC SKILL INFO)
+-- USER SKILL DETAILS
 CREATE TABLE skill_detail (
   id SERIAL PRIMARY KEY,
   user_id INT REFERENCES users(id) ON DELETE CASCADE,
   skill_id INT REFERENCES skills(id) ON DELETE CASCADE,
-  level VARCHAR(50), -- beginner, intermediate, expert
+  level VARCHAR(50),
   years_experience INT,
   description TEXT,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   UNIQUE (user_id, skill_id)
 );
 
--- LISTINGS (SKILL EXCHANGE POSTS)
+-- LISTINGS (USER POSTS EXCHANGE)
 CREATE TABLE listings (
   id SERIAL PRIMARY KEY,
   user_id INT REFERENCES users(id) ON DELETE CASCADE,
-  skill_offered_detail_id INT REFERENCES skill_detail(id),
+  skill_offered_detail_id INT REFERENCES skill_detail(id) ON DELETE CASCADE,
   skill_requested_id INT REFERENCES skills(id),
   description TEXT,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- EXCHANGES (REQUESTS)
+-- EXCHANGES
 CREATE TABLE exchanges (
   id SERIAL PRIMARY KEY,
   requester_id INT REFERENCES users(id) ON DELETE CASCADE,
@@ -55,11 +58,32 @@ CREATE TABLE exchanges (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- USER ACTIVITY (FOR PERSONALIZATION / AI)
+-- MESSAGES
+CREATE TABLE messages (
+  id SERIAL PRIMARY KEY,
+  exchange_id INT REFERENCES exchanges(id) ON DELETE CASCADE,
+  sender_id INT REFERENCES users(id) ON DELETE CASCADE,
+  content TEXT NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- RATINGS
+CREATE TABLE ratings (
+  id SERIAL PRIMARY KEY,
+  exchange_id INT REFERENCES exchanges(id) ON DELETE CASCADE,
+  rater_id INT REFERENCES users(id),
+  rated_user_id INT REFERENCES users(id),
+  score INT CHECK (score BETWEEN 1 AND 5),
+  comment TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(exchange_id, rater_id)
+);
+
+-- USER ACTIVITY (AI)
 CREATE TABLE user_activity (
   id SERIAL PRIMARY KEY,
   user_id INT REFERENCES users(id) ON DELETE CASCADE,
-  action VARCHAR(50), -- search, view, request
+  action VARCHAR(50),
   skill_id INT REFERENCES skills(id),
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
