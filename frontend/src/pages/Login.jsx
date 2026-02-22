@@ -27,9 +27,15 @@ export default function Login() {
 
       localStorage.setItem("token", res.data.token);
       localStorage.setItem("user", JSON.stringify(res.data.user));
+      localStorage.setItem("role", res.data.user.role);
 
       toast.success("Login successful!");
+
+      if (res.data.user.role === "admin") {
+        navigate("/admin");
+      } else {
       navigate("/dashboard");
+      }
 
     } catch (err) {
       console.error("LOGIN ERROR:", err);

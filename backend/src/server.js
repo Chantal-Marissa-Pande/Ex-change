@@ -1,11 +1,11 @@
 import express from "express";
 import cors from "cors";
-import pool from "./config/db.js";
 
 import userRoutes from "./routes/user.routes.js";
 import authRoutes from "./routes/auth.routes.js";
 import skillRoutes from "./routes/skill.routes.js"; 
 import analyticsRouter from "./routes/analytics.routes.js";
+import adminRoutes from "./routes/admin.routes.js";
 
 const app = express();
 
@@ -17,6 +17,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/skills", skillRoutes);
 app.use("/api/analytics", analyticsRouter);
+app.use("/api/admin", adminRoutes);
 
 // Root test
 app.get("/", (req, res) => {

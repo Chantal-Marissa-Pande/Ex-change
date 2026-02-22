@@ -6,9 +6,9 @@ import jwt from "jsonwebtoken";
 const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET || "secret_key";
 
-// ============================
-// REGISTER
-// ============================
+/* ============================
+   REGISTER
+============================ */
 router.post("/register", async (req, res) => {
   const { name, email, password } = req.body;
 
@@ -34,9 +34,9 @@ router.post("/register", async (req, res) => {
 
     const newUser = await pool.query(
       `
-      INSERT INTO users (name, email, password_hash)
-      VALUES ($1, $2, $3)
-      RETURNING id, name, email
+      INSERT INTO users (name, email, password_hash, role)
+      VALUES ($1, $2, $3, 'user')
+      RETURNING id, name, email, role
       `,
       [name, email, hashedPassword]
     );
@@ -44,7 +44,11 @@ router.post("/register", async (req, res) => {
     const user = newUser.rows[0];
 
     const token = jwt.sign(
-      { id: user.id, email: user.email },
+      {
+        id: user.id,
+        email: user.email,
+        role: user.role,
+      },
       JWT_SECRET,
       { expiresIn: "1d" }
     );
@@ -59,9 +63,9 @@ router.post("/register", async (req, res) => {
   }
 });
 
-// ============================
-// LOGIN
-// ============================
+/* ============================
+   LOGIN
+============================ */
 router.post("/login", async (req, res) => {
   const { email, password } = req.body;
 
@@ -73,7 +77,7 @@ router.post("/login", async (req, res) => {
 
   try {
     const result = await pool.query(
-      "SELECT id, name, email, password_hash FROM users WHERE email = $1",
+      "SELECT id, name, email, password_hash, role FROM users WHERE email = $1",
       [email]
     );
 
@@ -97,7 +101,11 @@ router.post("/login", async (req, res) => {
     }
 
     const token = jwt.sign(
-      { id: user.id, email: user.email },
+      {
+        id: user.id,
+        email: user.email,
+        role: user.role,
+      },
       JWT_SECRET,
       { expiresIn: "1d" }
     );
@@ -108,6 +116,7 @@ router.post("/login", async (req, res) => {
         id: user.id,
         name: user.name,
         email: user.email,
+        role: user.role,
       },
     });
 

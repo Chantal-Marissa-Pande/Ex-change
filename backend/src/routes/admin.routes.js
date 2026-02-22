@@ -1,28 +1,54 @@
-const express = require("express");
+import express from "express";
+import pool from "../config/db.js";
+import authMiddleware from "../middleware/auth.middleware.js";
+import adminMiddleware from "../middleware/admin.middleware.js";
+
 const router = express.Router();
-const pool = require("../config/db");
-const authenticate = require("../middleware/authenticate");
 
-function authorizeAdmin(req, res, next) {
-  if (req.user.role !== "admin") {
-    return res.status(403).json({ message: "Admin access required" });
+/* =============================
+   GET ALL USERS
+============================= */
+router.get(
+  "/users",
+  authMiddleware,
+  adminMiddleware,
+  async (req, res) => {
+    try {
+      const result = await pool.query(
+        "SELECT id, name, email, role FROM users ORDER BY id ASC"
+      );
+
+      return res.json(result.rows); // must return array
+    } catch (err) {
+      console.error("ADMIN USERS ERROR:", err);
+      return res.status(500).json({ message: "Server error" });
+    }
   }
-  next();
-}
+);
 
-// PLATFORM STATS
-router.get("/stats", authenticate, authorizeAdmin, async (req, res) => {
-  const users = await pool.query("SELECT COUNT(*) FROM users");
-  const exchanges = await pool.query("SELECT COUNT(*) FROM exchanges");
-  const completed = await pool.query(
-    "SELECT COUNT(*) FROM exchanges WHERE status='completed'"
-  );
+/* =============================
+   DASHBOARD STATS
+============================= */
+router.get(
+  "/stats",
+  authMiddleware,
+  adminMiddleware,
+  async (req, res) => {
+    try {
+      const users = await pool.query("SELECT COUNT(*) FROM users");
+      const exchanges = await pool.query("SELECT COUNT(*) FROM exchanges");
+      const skills = await pool.query("SELECT COUNT(*) FROM skill_detail");
 
-  res.json({
-    total_users: users.rows[0].count,
-    total_exchanges: exchanges.rows[0].count,
-    completed_exchanges: completed.rows[0].count,
-  });
-});
+      return res.json({
+        totalUsers: Number(users.rows[0].count),
+        totalExchanges: Number(exchanges.rows[0].count),
+        totalSkills: Number(skills.rows[0].count),
+      });
+    } catch (err) {
+      console.error("ADMIN STATS ERROR:", err);
+      return res.status(500).json({ message: "Server error" });
+    }
+  }
+);
 
-module.exports = router;
+export default router;

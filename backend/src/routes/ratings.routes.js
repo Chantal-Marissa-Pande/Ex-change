@@ -3,50 +3,49 @@ const router = express.Router();
 const pool = require("../config/db");
 const authenticate = require("../middleware/authenticate");
 
-// ---------------------------
-// GET /api/ratings?skill_id=
-// Fetch ratings for a specific skill
-// ---------------------------
-router.get("/", authenticate, async (req, res) => {
+/* =============================
+   SUBMIT RATING
+============================= */
+router.post("/:exchangeId", authenticate, async (req, res) => {
   try {
-    const { skill_id } = req.query;
-    if (!skill_id) return res.status(400).json({ message: "Skill ID is required" });
+    const exchangeId = req.params.exchangeId;
+    const { score, comment } = req.body;
+    const userId = req.user.id;
 
-    const query = `
-      SELECT r.id, r.rating, r.comment, r.created_at, u.name AS user_name
-      FROM ratings r
-      JOIN users u ON u.id = r.user_id
-      WHERE r.skill_id = $1
-      ORDER BY r.created_at DESC
-    `;
+    if (!score || score < 1 || score > 5)
+      return res.status(400).json({ message: "Score must be between 1 and 5" });
 
-    const result = await pool.query(query, [skill_id]);
-    res.json(result.rows);
+    const exchange = await pool.query(
+      `
+      SELECT e.*, l.user_id AS provider_id
+      FROM exchanges e
+      JOIN listings l ON l.id = e.listing_id
+      WHERE e.id = $1 AND e.status = 'completed'
+      `,
+      [exchangeId]
+    );
+
+    if (!exchange.rows.length)
+      return res.status(400).json({ message: "Exchange not completed" });
+
+    const ex = exchange.rows[0];
+
+    const ratedUser =
+      ex.requester_id === userId ? ex.provider_id : ex.requester_id;
+
+    const result = await pool.query(
+      `
+      INSERT INTO ratings (exchange_id, rater_id, rated_user_id, score, comment)
+      VALUES ($1, $2, $3, $4, $5)
+      RETURNING *
+      `,
+      [exchangeId, userId, ratedUser, score, comment || ""]
+    );
+
+    res.status(201).json(result.rows[0]);
+
   } catch (err) {
-    console.error("Fetch ratings error:", err);
-    res.status(500).json({ message: "Failed to fetch ratings" });
-  }
-});
-
-// ---------------------------
-// POST /api/ratings
-// Submit a new rating
-// ---------------------------
-router.post("/", authenticate, async (req, res) => {
-  try {
-    const { skill_id, rating, comment } = req.body;
-    if (!skill_id || !rating) return res.status(400).json({ message: "Skill ID and rating are required" });
-
-    const query = `
-      INSERT INTO ratings (skill_id, user_id, rating, comment)
-      VALUES ($1, $2, $3, $4)
-      RETURNING id, rating, comment, created_at
-    `;
-
-    const result = await pool.query(query, [skill_id, req.user.id, rating, comment || ""]);
-    res.json({ ...result.rows[0], user_name: req.user.name });
-  } catch (err) {
-    console.error("Submit rating error:", err);
+    console.error(err);
     res.status(500).json({ message: "Failed to submit rating" });
   }
 });
