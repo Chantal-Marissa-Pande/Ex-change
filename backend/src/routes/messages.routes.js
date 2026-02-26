@@ -1,12 +1,14 @@
-const express = require("express");
+import express from "express";
+import pool from "../config/db.js";
+import authenticate from "../middleware/authenticate.js";
+
 const router = express.Router();
-const pool = require("../config/db");
-const authenticate = require("../middleware/authenticate");
 
-
-// GET MESSAGES
+// GET messages for exchange
 router.get("/:exchangeId", authenticate, async (req, res) => {
   try {
+    const { exchangeId } = req.params;
+
     const { rows } = await pool.query(
       `
       SELECT m.*, u.name AS sender_name
@@ -15,26 +17,26 @@ router.get("/:exchangeId", authenticate, async (req, res) => {
       WHERE m.exchange_id = $1
       ORDER BY m.created_at ASC
       `,
-      [req.params.exchangeId]
+      [exchangeId]
     );
 
     res.json(rows);
-
   } catch (err) {
-    console.error(err);
+    console.error("Get messages error:", err);
     res.status(500).json({ message: "Failed to fetch messages" });
   }
 });
 
-
-// SEND MESSAGE
+// SEND message
 router.post("/:exchangeId", authenticate, async (req, res) => {
   try {
+    const { exchangeId } = req.params;
     const { content } = req.body;
     const userId = req.user.id;
 
-    if (!content.trim())
+    if (!content?.trim()) {
       return res.status(400).json({ message: "Message required" });
+    }
 
     const { rows } = await pool.query(
       `
@@ -42,15 +44,14 @@ router.post("/:exchangeId", authenticate, async (req, res) => {
       VALUES ($1, $2, $3)
       RETURNING *
       `,
-      [req.params.exchangeId, userId, content]
+      [exchangeId, userId, content]
     );
 
     res.status(201).json(rows[0]);
-
   } catch (err) {
-    console.error(err);
+    console.error("Send message error:", err);
     res.status(500).json({ message: "Failed to send message" });
   }
 });
 
-module.exports = router;
+export default router;

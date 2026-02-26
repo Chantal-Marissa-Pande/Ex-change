@@ -16,7 +16,7 @@ router.get("/me", authenticate, async (req, res) => {
     const user = userResult.rows[0];
 
     const skillsResult = await pool.query(
-      `SELECT sd.id AS detail_id, s.id AS skill_id, s.title, s.category, s.tags,
+      `SELECT sd.id AS id, s.id AS skillId, s.title, s.category, s.tags,
               sd.level, sd.years_experience, sd.description
        FROM skill_detail sd
        JOIN skills s ON s.id = sd.skill_id
@@ -44,7 +44,6 @@ router.post("/skills", authenticate, async (req, res) => {
   try {
     const { title, category, level, years_experience, tags, description } = req.body;
 
-    // 1️⃣ Insert skill if it doesn't exist
     const skillResult = await pool.query(
       `INSERT INTO skills (title, category, tags)
        VALUES ($1, $2, $3)
@@ -54,7 +53,6 @@ router.post("/skills", authenticate, async (req, res) => {
     );
     const skill = skillResult.rows[0];
 
-    // 2️⃣ Insert into skill_detail for this user, prevent duplicates
     const detailResult = await pool.query(
       `INSERT INTO skill_detail (user_id, skill_id, level, years_experience, description)
        VALUES ($1, $2, $3, $4, $5)
@@ -66,10 +64,9 @@ router.post("/skills", authenticate, async (req, res) => {
       [req.user.id, skill.id, level, years_experience || 0, description || ""]
     );
 
-    // Combine for frontend
     const combinedSkill = {
-      detail_id: detailResult.rows[0].id,
-      skill_id: skill.id,
+      id: detailResult.rows[0].id, // profile skill id
+      skillId: skill.id,
       title: skill.title,
       category: skill.category,
       level: detailResult.rows[0].level,
@@ -88,13 +85,13 @@ router.post("/skills", authenticate, async (req, res) => {
 // --------------------
 // DELETE /api/users/skills/:id
 // --------------------
-router.delete("/skills/:detailId", authenticate, async (req, res) => {
+router.delete("/skills/:id", authenticate, async (req, res) => {
   try {
-    const { detailId } = req.params;
+    const { id } = req.params;
 
     await pool.query(
       "DELETE FROM skill_detail WHERE id = $1 AND user_id = $2",
-      [detailId, req.user.id]
+      [id, req.user.id]
     );
 
     res.json({ message: "Skill deleted successfully" });

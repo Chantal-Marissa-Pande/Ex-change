@@ -1,19 +1,19 @@
-const express = require("express");
-const router = express.Router();
-const pool = require("../config/db");
-const authenticate = require("../middleware/authenticate");
+import express from "express";
+import pool from "../config/db.js";
+import authenticate from "../middleware/authenticate.js";
 
-/* =============================
-   SUBMIT RATING
-============================= */
+const router = express.Router();
+
+// Submit rating
 router.post("/:exchangeId", authenticate, async (req, res) => {
   try {
-    const exchangeId = req.params.exchangeId;
+    const { exchangeId } = req.params;
     const { score, comment } = req.body;
     const userId = req.user.id;
 
-    if (!score || score < 1 || score > 5)
+    if (!score || score < 1 || score > 5) {
       return res.status(400).json({ message: "Score must be between 1 and 5" });
+    }
 
     const exchange = await pool.query(
       `
@@ -25,8 +25,9 @@ router.post("/:exchangeId", authenticate, async (req, res) => {
       [exchangeId]
     );
 
-    if (!exchange.rows.length)
+    if (!exchange.rows.length) {
       return res.status(400).json({ message: "Exchange not completed" });
+    }
 
     const ex = exchange.rows[0];
 
@@ -43,11 +44,10 @@ router.post("/:exchangeId", authenticate, async (req, res) => {
     );
 
     res.status(201).json(result.rows[0]);
-
   } catch (err) {
-    console.error(err);
+    console.error("Rating error:", err);
     res.status(500).json({ message: "Failed to submit rating" });
   }
 });
 
-module.exports = router;
+export default router;

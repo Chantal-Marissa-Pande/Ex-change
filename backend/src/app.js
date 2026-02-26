@@ -1,22 +1,24 @@
-const express = require("express");
-const cors = require("cors");
-require("dotenv").config();
+import express from "express";
+import cors from "cors";
+import dotenv from "dotenv";
+
+import authRoutes from "./routes/auth.routes.js";
+import userRoutes from "./routes/user.routes.js";
+import skillRoutes from "./routes/skill.routes.js";
+import exchangeRoutes from "./routes/exchange.routes.js";
+import messageRoutes from "./routes/messages.routes.js";
+import ratingRoutes from "./routes/ratings.routes.js";
+import aiRoutes from "./routes/ai.routes.js";
+import adminRoutes from "./routes/admin.routes.js";
+import analyticsRoutes from "./routes/analytics.routes.js";
+import requestsRoutes from "./routes/requests.routes.js";
+
+dotenv.config();
 
 const app = express();
 
-// Middlewares
 app.use(cors());
 app.use(express.json());
-
-// Routes
-const authRoutes = require("./routes/auth.routes");
-const userRoutes = require("./routes/user.routes");
-const skillRoutes = require("./routes/skill.routes");
-const exchangeRoutes = require("./routes/exchange.routes");
-const messageRoutes = require("./routes/messages.routes");
-const ratingRoutes = require("./routes/ratings.routes");
-const aiRoutes = require("./routes/ai.routes");
-const adminRoutes = require("./routes/admin.routes");;
 
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
@@ -26,9 +28,11 @@ app.use("/api/messages", messageRoutes);
 app.use("/api/ratings", ratingRoutes);
 app.use("/api/ai", aiRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/analytics", analyticsRoutes);
+app.use("/api/requests", requestsRoutes);
 
 app.get("/", (req, res) => {
   res.send("API is running");
 });
 
-module.exports = app;
+export default app;

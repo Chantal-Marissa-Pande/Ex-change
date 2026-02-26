@@ -46,9 +46,9 @@ export default function Skills({ currentUser }) {
 
   const handleDeleteSkill = async (skillId) => {
     const prevSkills = [...skills];
-    setSkills(skills.filter((s) => s.id !== skillId));
+    setSkills(skills.filter((s) => s.id !== skillId)); // <-- corrected here
     try {
-      await api.delete(`/users/skills/${skillId}`);
+      await api.delete(`/skills/${skillId}`);
       toast.success("Skill deleted!");
     } catch (err) {
       console.error("Delete skill error:", err);
@@ -58,32 +58,72 @@ export default function Skills({ currentUser }) {
   };
 
   if (loading) return <div className="p-10 text-center">Loading skills…</div>;
-  if (!skills.length) return <div className="p-10 text-center text-gray-500">No skills available.</div>;
+  if (!skills.length)
+    return <div className="p-10 text-center text-gray-500">No skills available.</div>;
 
   return (
     <div>
       <div className="mb-6 flex gap-2">
-        <input type="text" placeholder="Search skills..." value={searchQuery} onChange={(e)=>setSearchQuery(e.target.value)} onKeyDown={(e)=>e.key==="Enter" && fetchSkills(searchQuery, selectedTag)} className="border rounded px-4 py-2 flex-1"/>
-        <select value={selectedTag} onChange={(e)=>setSelectedTag(e.target.value)} className="border rounded px-4 py-2">
+        <input
+          type="text"
+          placeholder="Search skills..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && fetchSkills(searchQuery, selectedTag)}
+          className="border rounded px-4 py-2 flex-1"
+        />
+        <select
+          value={selectedTag}
+          onChange={(e) => setSelectedTag(e.target.value)}
+          className="border rounded px-4 py-2"
+        >
           <option value="">All Tags</option>
-          {tags.map(tag => <option key={tag} value={tag}>{tag}</option>)}
+          {tags.map((tag) => (
+            <option key={tag} value={tag}>
+              {tag}
+            </option>
+          ))}
         </select>
-        <button onClick={()=>fetchSkills(searchQuery, selectedTag)} className="bg-primary text-white px-4 py-2 rounded hover:bg-green-700">Search</button>
+        <button
+          onClick={() => fetchSkills(searchQuery, selectedTag)}
+          className="bg-primary text-white px-4 py-2 rounded hover:bg-green-700"
+        >
+          Search
+        </button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {skills.map(skill => (
-          <div key={skill.id} className="p-4 bg-white rounded-xl shadow cursor-pointer hover:shadow-lg transition">
-            <div onClick={()=>navigate(`/skills/${skill.id}`)}>
+        {skills.map((skill) => (
+          <div
+            key={skill.id} // <-- corrected here
+            className="p-4 bg-white rounded-xl shadow cursor-pointer hover:shadow-lg transition"
+          >
+            <div onClick={() => navigate(`/skills/${skill.id}`)}> {/* <-- corrected */}
               <h2 className="text-xl font-semibold mb-2">{skill.title}</h2>
-              <p className="text-gray-600">Offered by <strong>{skill.owner_name}</strong></p>
-              <p className="text-gray-500 text-sm">Exchanged {skill.exchange_count} times</p>
+              <p className="text-gray-600">
+                Offered by <strong>{skill.owner_name}</strong>
+              </p>
+              <p className="text-gray-500 text-sm">
+                Exchanged {skill.exchange_count} times
+              </p>
               <div className="flex gap-2 mt-2 flex-wrap">
-                {skill.tags.map((t,i)=> <span key={i} className="text-xs bg-gray-100 px-2 py-1 rounded-full">{t}</span>)}
+                {skill.tags.map((t, i) => (
+                  <span
+                    key={`${skill.id}-${t}`} // <-- unique key
+                    className="text-xs bg-gray-100 px-2 py-1 rounded-full"
+                  >
+                    {t}
+                  </span>
+                ))}
               </div>
             </div>
             {skill.owner_id === currentUser?.id && (
-              <button onClick={()=>handleDeleteSkill(skill.id)} className="mt-3 bg-red-500 text-white px-3 py-1 rounded text-sm">Delete</button>
+              <button
+                onClick={() => handleDeleteSkill(skill.id)}
+                className="mt-3 bg-red-500 text-white px-3 py-1 rounded text-sm"
+              >
+                Delete
+              </button>
             )}
           </div>
         ))}

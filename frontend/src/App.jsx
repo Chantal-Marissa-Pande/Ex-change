@@ -6,6 +6,7 @@ import Register from "./pages/Register";
 import Login from "./pages/Login";
 import SkillDetail from "./pages/SkillDetail";
 import AdminDashboard from "./pages/AdminDashboard";
+import Skills from "./pages/Skills";
 
 export default function App() {
   return (
@@ -16,6 +17,7 @@ export default function App() {
         <Route path="/profile/:userId" element={<Profile />} />
         <Route path="/register" element={<Register />} />
         <Route path="/login" element={<Login />} />
+        <Route path="/skills" element={<Skills />} />
         <Route path="/skills/:skillId" element={<SkillDetail />} />
         <Route path="/admin" element={<AdminDashboard />} />
       </Routes>
