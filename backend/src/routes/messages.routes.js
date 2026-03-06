@@ -1,14 +1,14 @@
 import express from "express";
 import pool from "../config/db.js";
 import authenticate from "../middleware/authenticate.js";
+import { io } from "../server.js";
 
 const router = express.Router();
 
-// GET messages for exchange
+/* ---------------- GET MESSAGES ---------------- */
 router.get("/:exchangeId", authenticate, async (req, res) => {
   try {
     const { exchangeId } = req.params;
-
     const { rows } = await pool.query(
       `
       SELECT m.*, u.name AS sender_name
@@ -22,12 +22,12 @@ router.get("/:exchangeId", authenticate, async (req, res) => {
 
     res.json(rows);
   } catch (err) {
-    console.error("Get messages error:", err);
+    console.error(err);
     res.status(500).json({ message: "Failed to fetch messages" });
   }
 });
 
-// SEND message
+/* ---------------- SEND MESSAGE ---------------- */
 router.post("/:exchangeId", authenticate, async (req, res) => {
   try {
     const { exchangeId } = req.params;
@@ -38,7 +38,8 @@ router.post("/:exchangeId", authenticate, async (req, res) => {
       return res.status(400).json({ message: "Message required" });
     }
 
-    const { rows } = await pool.query(
+    // Insert the message
+    const result = await pool.query(
       `
       INSERT INTO messages (exchange_id, sender_id, content)
       VALUES ($1, $2, $3)
@@ -47,9 +48,25 @@ router.post("/:exchangeId", authenticate, async (req, res) => {
       [exchangeId, userId, content]
     );
 
-    res.status(201).json(rows[0]);
+    const message = result.rows[0];
+
+    // Emit the message to the corresponding exchange room
+    io.to(`exchange_${exchangeId}`).emit("receiveMessage", message);
+
+    // Update the message count in the exchange
+    await pool.query(
+      `
+      UPDATE exchanges
+      SET message_count = message_count + 1
+      WHERE id = $1
+      `,
+      [exchangeId]
+    );
+
+    // Send the response
+    res.status(201).json(message);
   } catch (err) {
-    console.error("Send message error:", err);
+    console.error(err);
     res.status(500).json({ message: "Failed to send message" });
   }
 });

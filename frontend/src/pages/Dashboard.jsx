@@ -4,6 +4,7 @@ import api from "../api/axios";
 import toast from "react-hot-toast";
 import Skills from "./Skills";
 import AddSkillForm from "./AddSkillForm";
+import socket from "../socket";
 import { Bar } from "react-chartjs-2";
 import {
   Chart as ChartJS,
@@ -20,207 +21,200 @@ ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend)
 export default function Dashboard() {
   const navigate = useNavigate();
   const messageEndRef = useRef(null);
-
-  // -----------------------------
-  // Core State
-  // -----------------------------
   const [user, setUser] = useState(null);
   const [profileSkills, setProfileSkills] = useState([]);
   const [marketplaceSkills, setMarketplaceSkills] = useState([]);
   const [requests, setRequests] = useState({ incoming: [], outgoing: [] });
   const [analyticsData, setAnalyticsData] = useState(null);
-
-  const [activeTab, setActiveTab] = useState("skills");
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-
-  // -----------------------------
-  // Messaging State
-  // -----------------------------
+  const [recommendations, setRecommendations] = useState([]);
+  const [ratings, setRatings] = useState([]);
   const [messages, setMessages] = useState([]);
   const [selectedExchange, setSelectedExchange] = useState(null);
   const [newMessage, setNewMessage] = useState("");
+  const [activeTab, setActiveTab] = useState("skills");
+  const [loading, setLoading] = useState(true);
 
-  // -----------------------------
-  // Ratings State
-  // -----------------------------
-  const [ratings, setRatings] = useState([]);
-  const [ratingValue, setRatingValue] = useState(5);
-  const [review, setReview] = useState("");
-
-  // -----------------------------
-  // Recommendations State
-  // -----------------------------
-  const [recommendations, setRecommendations] = useState([]);
-
-  // -----------------------------
-  // Load Dashboard
-  // -----------------------------
+  /* ---------------- Load Dashboard ---------------- */
   useEffect(() => {
-    const loadDashboard = async () => {
+    async function loadDashboard() {
       try {
         const res = await api.get("/users/me");
         const userData = res.data;
-
-        const cleanTags = (tagString) =>
-          tagString
-            ? tagString
-                .split(",")
-                .map((t) => t.replace(/[^\w\s]/g, "").trim())
-                .filter(Boolean)
-            : [];
-
-        const cleanedSkills = (userData.skills || []).map((s) => ({
-          ...s,
-          tags: Array.isArray(s.tags)
-            ? s.tags.map((t) => t.replace(/[^\w\s]/g, "").trim())
-            : cleanTags(s.tags),
-        }));
-
         setUser(userData);
-        setProfileSkills(cleanedSkills);
+        setProfileSkills(userData.skills || []);
 
-        // Load marketplace skills
-        const marketplaceRes = await api.get("/skills");
-        const marketplaceData = marketplaceRes.data.map((s) => ({
-          ...s,
-          tags: Array.isArray(s.tags)
-            ? s.tags.map((t) => t.replace(/[^\w\s]/g, "").trim())
-            : [],
-        }));
-        setMarketplaceSkills(marketplaceData);
-
-        setRequests({ incoming: [], outgoing: [] });
-        setRatings([]);
-        setRecommendations([]);
-        setAnalyticsData(null);
+        const marketplace = await api.get("/skills");
+        setMarketplaceSkills(marketplace.data);
       } catch (err) {
         console.error(err);
-        setError("Failed to load dashboard");
+        toast.error("Failed to load dashboard");
       } finally {
         setLoading(false);
       }
-    };
-
+    }
     loadDashboard();
   }, []);
 
-  // -----------------------------
-  // Messaging
-  // -----------------------------
-  const loadMessages = async (exchangeId) => {
+  /* ---------------- Requests ---------------- */
+  useEffect(() => {
+    if (activeTab !== "requests") return;
+    async function loadRequests() {
+      try {
+        const res = await api.get("/requests");
+        setRequests(res.data);
+      } catch (err) {
+        console.error(err);
+      }
+    }
+    loadRequests();
+  }, [activeTab]);
+
+  /* ---------------- AI Recommendations ---------------- */
+  useEffect(() => {
+    if (activeTab !== "recommendations") return;
+    async function loadRecommendations() {
+      try {
+        const res = await api.get("/ai/recommendations");
+        setRecommendations(res.data);
+      } catch (err) {
+        console.error(err);
+      }
+    }
+    loadRecommendations();
+  }, [activeTab]);
+
+  /* ---------------- Ratings ---------------- */
+  useEffect(() => {
+    if (activeTab !== "ratings") return;
+    async function loadRatings() {
+      try {
+        const res = await api.get("/ratings/received");
+        setRatings(res.data);
+      } catch (err) {
+        console.error(err);
+      }
+    }
+    loadRatings();
+  }, [activeTab]);
+
+  /* ---------------- Analytics ---------------- */
+  useEffect(() => {
+    if (activeTab !== "analytics") return;
+    async function loadAnalytics() {
+      try {
+        const res = await api.get("/analytics");
+        setAnalyticsData(res.data);
+      } catch (err) {
+        console.error(err);
+      }
+    }
+    loadAnalytics();
+  }, [activeTab]);
+
+  /* ---------------- Socket Setup & Messages ---------------- */
+  useEffect(() => {
+    if (!selectedExchange) return;
+
+    // Join the exchange room
+    socket.emit("join_exchange", selectedExchange);
+
+    // Listen for incoming messages
+    const handleReceiveMessage = (msg) => {
+      setMessages((prev) => [...prev, msg]);
+      // Scroll to bottom on new message
+      setTimeout(() => {
+        messageEndRef.current?.scrollIntoView({ behavior: "smooth" });
+      }, 50);
+    };
+
+    socket.on("receive_message", handleReceiveMessage);
+
+    // Handle reconnect: rejoin the room automatically
+    const handleReconnect = () => {
+      if (selectedExchange) {
+        socket.emit("join_exchange", selectedExchange);
+      }
+    };
+    socket.on("connect", handleReconnect);
+
+    return () => {
+      socket.off("receive_message", handleReceiveMessage);
+      socket.off("connect", handleReconnect);
+    };
+  }, [selectedExchange]);
+
+  /* ---------------- Messages ---------------- */
+  async function loadMessages(exchangeId) {
     try {
       const res = await api.get(`/messages/${exchangeId}`);
       setMessages(res.data);
       setSelectedExchange(exchangeId);
-      scrollToBottom();
+      setTimeout(() => {
+        messageEndRef.current?.scrollIntoView({ behavior: "smooth" });
+      }, 100);
     } catch {
       toast.error("Failed to load messages");
     }
-  };
+  }
 
-  const sendMessage = async () => {
-    if (!newMessage.trim() || !selectedExchange) return;
+  async function sendMessage() {
+    if (!newMessage.trim()) return;
 
-    try {
-      await api.post(`/messages/${selectedExchange}`, {
-        content: newMessage,
-      });
-      setNewMessage("");
-      loadMessages(selectedExchange);
-    } catch {
-      toast.error("Message failed");
-    }
-  };
-
-  const scrollToBottom = () => {
-    setTimeout(() => {
-      messageEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    }, 100);
-  };
-
-  // -----------------------------
-  // Rating Submission
-  // -----------------------------
-  const submitRating = async (exchangeId) => {
-    try {
-      await api.post(`/ratings/${exchangeId}`, {
-        score: ratingValue,
-        comment: review,
-      });
-      toast.success("Rating submitted!");
-      setReview("");
-    } catch {
-      toast.error("Failed to submit rating");
-    }
-  };
-
-  // -----------------------------
-  // Delete Skill (profile + marketplace sync)
-  // -----------------------------
-  const handleDeleteSkill = async (skillId) => {
-    const prevProfile = [...profileSkills];
-    const prevMarketplace = [...marketplaceSkills];
-
-    setProfileSkills((prev) => prev.filter((s) => s.id !== skillId));
-    setMarketplaceSkills((prev) =>
-      prev.filter((s) => s.detail_id !== skillId)
-    );
-
-    try {
-      await api.delete(`/users/skills/${skillId}`);
-      toast.success("Skill deleted!");
-    } catch {
-      toast.error("Failed to delete skill");
-      setProfileSkills(prevProfile);
-      setMarketplaceSkills(prevMarketplace);
-    }
-  };
-
-  // -----------------------------
-  // Add Skill (profile + marketplace sync)
-  // -----------------------------
-  const handleAddSkill = (newSkill) => {
-    const cleaned = {
-      ...newSkill,
-      tags: (newSkill.tags || []).map((t) => t.replace(/[^\w\s]/g, "").trim()),
+    const msg = {
+      exchangeId: selectedExchange,
+      content: newMessage,
+      sender_id: user.id,
     };
 
-    setProfileSkills((prev) => [cleaned, ...prev]);
-    setMarketplaceSkills((prev) => [cleaned, ...prev]);
-  };
+    // Emit to backend
+    socket.emit("send_message", msg);
 
-  // -----------------------------
-  // Logout
-  // -----------------------------
-  const handleLogout = () => {
+    // Persist in DB
+    await api.post(`/messages/${selectedExchange}`, { content: newMessage });
+
+    setNewMessage("");
+  }
+
+  /* ---------------- Skill Delete ---------------- */
+  async function handleDeleteSkill(id) {
+    try {
+      await api.delete(`/users/skills/${id}`);
+      setProfileSkills((prev) => prev.filter((s) => s.id !== id));
+      toast.success("Skill deleted");
+    } catch {
+      toast.error("Delete failed");
+    }
+  }
+
+  function handleAddSkill(skill) {
+    setProfileSkills((prev) => [skill, ...prev]);
+  }
+
+  /* ---------------- Logout ---------------- */
+  function handleLogout() {
     localStorage.removeItem("token");
     navigate("/login");
-  };
+  }
 
-  if (loading)
-    return <div className="p-10 text-center text-xl">Loading dashboard...</div>;
-
-  if (error)
-    return <div className="p-10 text-center text-red-500">{error}</div>;
+  if (loading) {
+    return <div className="p-10 text-center">Loading dashboard...</div>;
+  }
 
   return (
     <div className="min-h-screen bg-gray-100 p-6">
       <div className="max-w-6xl mx-auto">
-        {/* Header */}
-        <div className="flex justify-between items-center mb-6 flex-wrap gap-2">
-          <h1 className="text-3xl font-bold">
-            Welcome, {user?.name || "User"} 👋
-          </h1>
+        {/* HEADER */}
+        <div className="flex justify-between mb-6">
+          <h1 className="text-3xl font-bold">Welcome {user?.name}</h1>
           <button
             onClick={handleLogout}
-            className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
+            className="bg-red-500 text-white px-4 py-2 rounded"
           >
             Logout
           </button>
         </div>
 
-        {/* Tabs */}
+        {/* TABS */}
         <div className="flex gap-3 mb-6 flex-wrap">
           {[
             "skills",
@@ -234,18 +228,16 @@ export default function Dashboard() {
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className={`px-4 py-2 rounded transition ${
-                activeTab === tab
-                  ? "bg-blue-600 text-white"
-                  : "bg-gray-300 hover:bg-gray-400"
+              className={`px-4 py-2 rounded ${
+                activeTab === tab ? "bg-blue-600 text-white" : "bg-gray-300"
               }`}
             >
-              {tab.charAt(0).toUpperCase() + tab.slice(1)}
+              {tab}
             </button>
           ))}
         </div>
 
-        {/* Marketplace */}
+        {/* MARKETPLACE */}
         {activeTab === "skills" && (
           <Skills
             currentUser={user}
@@ -254,89 +246,125 @@ export default function Dashboard() {
           />
         )}
 
-        {/* Profile */}
+        {/* PROFILE */}
         {activeTab === "profile" && (
-          <div className="bg-white p-6 rounded shadow space-y-4">
-            <p><strong>Name:</strong> {user?.name}</p>
-            <p><strong>Email:</strong> {user?.email}</p>
+          <div className="bg-white p-6 rounded shadow">
+            <p>
+              <b>Name:</b> {user.name}
+            </p>
+            <p>
+              <b>Email:</b> {user.email}
+            </p>
+            <h3 className="mt-4 font-semibold">My Skills</h3>
 
-            <h3 className="font-semibold mt-4 mb-2">My Skills</h3>
+            {profileSkills.map((skill) => (
+              <div key={skill.id} className="border p-3 mt-2 flex justify-between">
+                <div>
+                  <b>{skill.title}</b>
+                  <p>{skill.description}</p>
+                </div>
+                <button
+                  onClick={() => handleDeleteSkill(skill.id)}
+                  className="bg-red-500 text-white px-2 rounded"
+                >
+                  Delete
+                </button>
+              </div>
+            ))}
 
-            {profileSkills.length ? (
-              <ul className="space-y-3">
-                {profileSkills.map((skill) => (
-                  <li
-                    key={skill.id}
-                    className="bg-gray-100 p-4 rounded flex justify-between gap-4"
-                  >
-                    <div>
-                      <p className="font-semibold">
-                        {skill.title} ({skill.level})
-                      </p>
-                      <p className="text-sm text-gray-600">
-                        {skill.category} | {skill.years_experience} yrs
-                      </p>
-                      <p className="text-sm text-gray-500">{skill.description}</p>
-
-                      <div className="flex flex-wrap gap-2 mt-2">
-                        {skill.tags.map((tag) => (
-                          <span
-                            key={`${skill.id}-${tag}`}
-                            className="bg-blue-200 text-blue-800 px-2 py-0.5 rounded text-xs"
-                          >
-                            {tag}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-
-                    <button
-                      onClick={() => handleDeleteSkill(skill.id)}
-                      className="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600"
-                    >
-                      Delete
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p>No skills added yet.</p>
-            )}
-
-            <div className="mt-6 border-t pt-4">
+            <div className="mt-4">
               <AddSkillForm currentUser={user} onSkillAdded={handleAddSkill} />
             </div>
           </div>
         )}
 
-        {/* Placeholder Tabs */}
+        {/* REQUESTS */}
         {activeTab === "requests" && (
           <div className="bg-white p-6 rounded shadow">
-            <p>Requests functionality coming next...</p>
+            <h2 className="font-semibold mb-3">Incoming</h2>
+            {requests.incoming.map((r) => (
+              <div key={r.id}>{r.title}</div>
+            ))}
+            <h2 className="font-semibold mt-4 mb-3">Outgoing</h2>
+            {requests.outgoing.map((r) => (
+              <div key={r.id}>{r.title}</div>
+            ))}
           </div>
         )}
 
+        {/* MESSAGES */}
         {activeTab === "messages" && (
           <div className="bg-white p-6 rounded shadow">
-            <p>Messaging interface coming next...</p>
+            {!selectedExchange && (
+              <div>
+                <h2 className="font-semibold mb-3">Select an Exchange</h2>
+                {requests.outgoing.concat(requests.incoming).map((ex) => (
+                  <button
+                    key={ex.id}
+                    onClick={() => loadMessages(ex.id)}
+                    className="block border p-2 w-full text-left mb-2"
+                  >
+                    Exchange #{ex.id}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {selectedExchange && (
+              <div>
+                <div className="h-64 overflow-y-auto border p-3 mb-3">
+                  {messages.map((m) => (
+                    <div key={m.id} className="mb-2">
+                      <b>{m.sender_name}</b>: {m.content}
+                    </div>
+                  ))}
+                  <div ref={messageEndRef} />
+                </div>
+                <div className="flex gap-2">
+                  <input
+                    value={newMessage}
+                    onChange={(e) => setNewMessage(e.target.value)}
+                    className="border flex-1 p-2"
+                  />
+                  <button
+                    onClick={sendMessage}
+                    className="bg-blue-600 text-white px-4"
+                  >
+                    Send
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
+        {/* RATINGS */}
         {activeTab === "ratings" && (
           <div className="bg-white p-6 rounded shadow">
-            <p>Ratings system coming next...</p>
+            {ratings.map((r) => (
+              <div key={r.id} className="border p-3 mb-2">
+                ⭐ {r.score}
+                <p>{r.comment}</p>
+              </div>
+            ))}
           </div>
         )}
 
+        {/* AI RECOMMENDATIONS */}
         {activeTab === "recommendations" && (
           <div className="bg-white p-6 rounded shadow">
-            <p>Recommendations engine coming next...</p>
+            {recommendations.map((skill) => (
+              <div key={skill.id} className="border p-3 mb-2">
+                {skill.title}
+              </div>
+            ))}
           </div>
         )}
 
+        {/* ANALYTICS */}
         {activeTab === "analytics" && (
           <div className="bg-white p-6 rounded shadow">
-            {analyticsData ? <Bar data={analyticsData} /> : <p>Analytics dashboard coming next...</p>}
+            {analyticsData ? <Bar data={analyticsData} /> : <p>No analytics yet</p>}
           </div>
         )}
       </div>

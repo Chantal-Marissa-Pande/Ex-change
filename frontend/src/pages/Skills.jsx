@@ -4,130 +4,88 @@ import api from "../api/axios";
 import toast from "react-hot-toast";
 
 export default function Skills({ currentUser }) {
-  const navigate = useNavigate();
-  const [skills, setSkills] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [selectedTag, setSelectedTag] = useState("");
-  const [tags, setTags] = useState([]);
 
-  const fetchSkills = async (query = "", tag = "") => {
-    try {
-      setLoading(true);
-      const res = await api.get("/skills", { params: { q: query, tag } });
+  const navigate=useNavigate();
 
-      const data = res.data.map((skill) => ({
-        ...skill,
-        tags: Array.isArray(skill.tags)
-          ? skill.tags.map((t) => t.replace(/[^\w\s]/g, "").trim())
-          : skill.tags
-          ? skill.tags.split(",").map((t) => t.replace(/[^\w\s]/g, "").trim())
-          : [],
-        exchange_count: skill.exchange_count || 0,
-      }));
+  const [allSkills,setAllSkills]=useState([]);
+  const [skills,setSkills]=useState([]);
+  const [query,setQuery]=useState("");
 
-      setSkills(data);
+  useEffect(()=>{
+    loadSkills();
+  },[]);
 
-      // Collect unique tags
-      const allTags = new Set();
-      data.forEach((s) => s.tags.forEach((t) => allTags.add(t)));
-      setTags([...allTags]);
-    } catch (err) {
-      console.error("Error fetching skills:", err);
-      toast.error("Failed to load skills.");
-    } finally {
-      setLoading(false);
+  const loadSkills=async()=>{
+    try{
+      const res=await api.get("/skills");
+      setAllSkills(res.data);
+      setSkills(res.data);
+    }catch{
+      toast.error("Failed to load skills");
     }
   };
 
-  useEffect(() => {
-    fetchSkills();
-  }, []);
+  const search=()=>{
 
-  const handleDeleteSkill = async (skillId) => {
-    const prevSkills = [...skills];
-    setSkills(skills.filter((s) => s.id !== skillId)); // <-- corrected here
-    try {
-      await api.delete(`/skills/${skillId}`);
-      toast.success("Skill deleted!");
-    } catch (err) {
-      console.error("Delete skill error:", err);
-      toast.error("Failed to delete skill");
-      setSkills(prevSkills);
+    if(!query){
+      setSkills(allSkills);
+      return;
     }
+
+    const filtered=allSkills.filter(s=>
+      s.title.toLowerCase().includes(query.toLowerCase())
+    );
+
+    setSkills(filtered);
   };
 
-  if (loading) return <div className="p-10 text-center">Loading skills…</div>;
-  if (!skills.length)
-    return <div className="p-10 text-center text-gray-500">No skills available.</div>;
+  return(
 
-  return (
     <div>
-      <div className="mb-6 flex gap-2">
+
+      <div className="flex gap-2 mb-4">
+
         <input
-          type="text"
-          placeholder="Search skills..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && fetchSkills(searchQuery, selectedTag)}
-          className="border rounded px-4 py-2 flex-1"
+          value={query}
+          onChange={e=>setQuery(e.target.value)}
+          placeholder="Search skills"
+          className="border p-2 flex-1"
         />
-        <select
-          value={selectedTag}
-          onChange={(e) => setSelectedTag(e.target.value)}
-          className="border rounded px-4 py-2"
-        >
-          <option value="">All Tags</option>
-          {tags.map((tag) => (
-            <option key={tag} value={tag}>
-              {tag}
-            </option>
-          ))}
-        </select>
+
         <button
-          onClick={() => fetchSkills(searchQuery, selectedTag)}
-          className="bg-primary text-white px-4 py-2 rounded hover:bg-green-700"
+          onClick={search}
+          className="bg-blue-600 text-white px-4"
         >
           Search
         </button>
+
+        <button
+          onClick={()=>setSkills(allSkills)}
+          className="bg-gray-400 px-4"
+        >
+          Reset
+        </button>
+
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {skills.map((skill) => (
-          <div
-            key={skill.id} // <-- corrected here
-            className="p-4 bg-white rounded-xl shadow cursor-pointer hover:shadow-lg transition"
-          >
-            <div onClick={() => navigate(`/skills/${skill.id}`)}> {/* <-- corrected */}
-              <h2 className="text-xl font-semibold mb-2">{skill.title}</h2>
-              <p className="text-gray-600">
-                Offered by <strong>{skill.owner_name}</strong>
-              </p>
-              <p className="text-gray-500 text-sm">
-                Exchanged {skill.exchange_count} times
-              </p>
-              <div className="flex gap-2 mt-2 flex-wrap">
-                {skill.tags.map((t, i) => (
-                  <span
-                    key={`${skill.id}-${t}`} // <-- unique key
-                    className="text-xs bg-gray-100 px-2 py-1 rounded-full"
-                  >
-                    {t}
-                  </span>
-                ))}
-              </div>
-            </div>
-            {skill.owner_id === currentUser?.id && (
-              <button
-                onClick={() => handleDeleteSkill(skill.id)}
-                className="mt-3 bg-red-500 text-white px-3 py-1 rounded text-sm"
-              >
-                Delete
-              </button>
-            )}
+      <div className="grid grid-cols-3 gap-4">
+
+        {skills.map(skill=>(
+
+          <div key={skill.id} className="border p-3 rounded cursor-pointer" onClick={()=>navigate(`/skills/${skill.id}`)}>
+
+            <h3 className="font-bold">{skill.title}</h3>
+
+            <p>{skill.owner_name}</p>
+
           </div>
+
         ))}
+
       </div>
+
     </div>
+
   );
+
 }

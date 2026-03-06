@@ -1,31 +1,48 @@
-import express from "express";
-import cors from "cors";
+import http from "http";
+import { Server } from "socket.io";
+import dotenv from "dotenv";
+import app from "./app.js";
 
-import userRoutes from "./routes/user.routes.js";
-import authRoutes from "./routes/auth.routes.js";
-import skillRoutes from "./routes/skill.routes.js"; 
-import analyticsRouter from "./routes/analytics.routes.js";
-import adminRoutes from "./routes/admin.routes.js";
-
-const app = express();
-
-app.use(cors());
-app.use(express.json());
-
-// Mount routes
-app.use("/api/auth", authRoutes);
-app.use("/api/users", userRoutes);
-app.use("/api/skills", skillRoutes);
-app.use("/api/analytics", analyticsRouter);
-app.use("/api/admin", adminRoutes);
-
-// Root test
-app.get("/", (req, res) => {
-  res.send("Ex-change API running 🚀");
-});
+dotenv.config();
 
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+/* ---------- Create HTTP Server ---------- */
+const server = http.createServer(app);
+
+/* ---------- Socket.io Setup ---------- */
+export const io = new Server(server, {
+  cors: {
+    origin: "http://localhost:5173",
+    methods: ["GET", "POST"]
+  }
+});
+
+/* ---------- Socket Events ---------- */
+io.on("connection", (socket) => {
+  console.log("User connected:", socket.id);
+
+  // Join exchange room
+  socket.on("join_exchange", (exchangeId) => {
+    socket.join(`exchange_${exchangeId}`);
+  });
+
+  // Send chat message
+  socket.on("send_message", (data) => {
+    io.to(`exchange_${data.exchangeId}`).emit("receive_message", data);
+  });
+
+  // Exchange status update
+  socket.on("update_exchange_status", (data) => {
+    io.emit("exchange_status_updated", data);
+  });
+
+  socket.on("disconnect", () => {
+    console.log("User disconnected:", socket.id);
+  });
+});
+
+/* ---------- Start Server ---------- */
+server.listen(PORT, () => {
+  console.log(`🚀 Server running on port ${PORT}`);
 });

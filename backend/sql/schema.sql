@@ -28,7 +28,7 @@ CREATE TABLE skills (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- USER SKILL DETAILS
+-- USER SKILLS
 CREATE TABLE skill_detail (
   id SERIAL PRIMARY KEY,
   user_id INT REFERENCES users(id) ON DELETE CASCADE,
@@ -72,6 +72,8 @@ CREATE TABLE messages (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE INDEX idx_messages_exchange ON messages(exchange_id);
+
 -- RATINGS
 CREATE TABLE ratings (
   id SERIAL PRIMARY KEY,
@@ -99,7 +101,7 @@ CREATE TABLE connections (
   id SERIAL PRIMARY KEY,
   user_id INT REFERENCES users(id) ON DELETE CASCADE,
   connected_user_id INT REFERENCES users(id) ON DELETE CASCADE,
-  status VARCHAR(20) DEFAULT 'pending', -- pending, accepted, rejected
+  status VARCHAR(20) DEFAULT 'pending',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   UNIQUE(user_id, connected_user_id)
 );

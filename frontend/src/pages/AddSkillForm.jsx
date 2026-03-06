@@ -2,70 +2,74 @@ import { useState } from "react";
 import api from "../api/axios";
 import toast from "react-hot-toast";
 
-export default function AddSkillForm({ currentUser, onSkillAdded }) {
-  const [title, setTitle] = useState("");
-  const [category, setCategory] = useState("");
-  const [level, setLevel] = useState("Beginner");
-  const [yearsExperience, setYearsExperience] = useState("");
-  const [tags, setTags] = useState("");
-  const [description, setDescription] = useState("");
-  const [loading, setLoading] = useState(false);
+export default function AddSkillForm({ onSkillAdded }) {
 
-  const handleAddSkill = async () => {
-    if (!title || !category) {
-      toast.error("Title and Category are required");
+  const [title,setTitle]=useState("");
+  const [category,setCategory]=useState("");
+  const [level,setLevel]=useState("Beginner");
+  const [years,setYears]=useState("");
+  const [tags,setTags]=useState("");
+  const [description,setDescription]=useState("");
+
+  const addSkill=async()=>{
+
+    if(!title || !category){
+      toast.error("Title and category required");
       return;
     }
 
-    setLoading(true);
+    try{
 
-    try {
-      const cleanedTags = tags
-        .split(",")
-        .map((t) => t.replace(/[^\w\s]/g, "").trim())
-        .filter(Boolean);
-
-      const res = await api.post("/users/skills", {
+      const res=await api.post("/users/skills",{
         title,
         category,
         level,
-        years_experience: Number(yearsExperience) || 0,
-        tags: cleanedTags,
-        description,
+        years_experience:Number(years)||0,
+        tags:tags.split(",").map(t=>t.trim()),
+        description
       });
 
-      toast.success("Skill added successfully!");
       onSkillAdded(res.data);
 
-      // Reset
+      toast.success("Skill added");
+
       setTitle("");
       setCategory("");
       setLevel("Beginner");
-      setYearsExperience("");
+      setYears("");
       setTags("");
       setDescription("");
-    } catch (err) {
-      console.error("Add skill error:", err);
-      toast.error(err.response?.data?.error || "Failed to add skill");
-    } finally {
-      setLoading(false);
+
+    }catch{
+      toast.error("Failed to add skill");
     }
+
   };
 
-  return (
-    <div className="bg-gray-50 p-4 rounded shadow space-y-3">
-      <h3 className="font-semibold text-lg">Add New Skill</h3>
-      <input type="text" placeholder="Skill Title" value={title} onChange={e=>setTitle(e.target.value)} className="border px-3 py-2 w-full rounded"/>
-      <input type="text" placeholder="Category" value={category} onChange={e=>setCategory(e.target.value)} className="border px-3 py-2 w-full rounded"/>
-      <select value={level} onChange={e=>setLevel(e.target.value)} className="border px-3 py-2 w-full rounded">
-        {["Beginner","Intermediate","Advanced"].map(lvl=><option key={lvl} value={lvl}>{lvl}</option>)}
+  return(
+
+    <div className="space-y-2">
+
+      <input value={title} onChange={e=>setTitle(e.target.value)} placeholder="Title" className="border p-2 w-full"/>
+
+      <input value={category} onChange={e=>setCategory(e.target.value)} placeholder="Category" className="border p-2 w-full"/>
+
+      <select value={level} onChange={e=>setLevel(e.target.value)} className="border p-2 w-full">
+        {["Beginner","Intermediate","Advanced"].map(l=><option key={l}>{l}</option>)}
       </select>
-      <input type="number" placeholder="Years of Experience" value={yearsExperience} onChange={e=>setYearsExperience(e.target.value)} className="border px-3 py-2 w-full rounded"/>
-      <input type="text" placeholder="Tags (comma separated)" value={tags} onChange={e=>setTags(e.target.value)} className="border px-3 py-2 w-full rounded"/>
-      <textarea placeholder="Description" value={description} onChange={e=>setDescription(e.target.value)} className="border px-3 py-2 w-full rounded"/>
-      <button onClick={handleAddSkill} disabled={loading} className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 w-full">
-        {loading ? "Adding..." : "Add Skill"}
+
+      <input value={years} onChange={e=>setYears(e.target.value)} placeholder="Years experience" className="border p-2 w-full"/>
+
+      <input value={tags} onChange={e=>setTags(e.target.value)} placeholder="tags" className="border p-2 w-full"/>
+
+      <textarea value={description} onChange={e=>setDescription(e.target.value)} className="border p-2 w-full"/>
+
+      <button onClick={addSkill} className="bg-green-600 text-white px-4 py-2 rounded w-full">
+        Add Skill
       </button>
+
     </div>
+
   );
+
 }
