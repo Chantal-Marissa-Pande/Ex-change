@@ -4,10 +4,9 @@ import authenticate from "../middleware/authenticate.js";
 
 const router = express.Router();
 
-/* -------- Submit Rating -------- */
+// Submit a rating for a completed exchange
 router.post("/:exchangeId", authenticate, async (req, res) => {
   try {
-
     const { exchangeId } = req.params;
     const { score, comment } = req.body;
     const userId = req.user.id;
@@ -15,71 +14,54 @@ router.post("/:exchangeId", authenticate, async (req, res) => {
     if (!score || score < 1 || score > 5)
       return res.status(400).json({ message: "Score must be between 1 and 5" });
 
-    const exchange = await pool.query(
-      `
-      SELECT e.*, l.user_id AS provider_id
-      FROM exchanges e
-      JOIN listings l ON l.id = e.listing_id
-      WHERE e.id = $1 AND e.status = 'completed'
-      `,
+    const exchangeRes = await pool.query(
+      `SELECT e.*, l.user_id AS provider_id
+       FROM exchanges e
+       JOIN listings l ON l.id = e.listing_id
+       WHERE e.id = $1 AND e.status = 'completed'`,
       [exchangeId]
     );
 
-    if (!exchange.rows.length)
+    if (!exchangeRes.rows.length)
       return res.status(400).json({ message: "Exchange not completed" });
 
-    const ex = exchange.rows[0];
-
-    const ratedUser =
-      ex.requester_id === userId
-        ? ex.provider_id
-        : ex.requester_id;
+    const ex = exchangeRes.rows[0];
+    const ratedUser = ex.requester_id === userId ? ex.provider_id : ex.requester_id;
 
     const result = await pool.query(
-      `
-      INSERT INTO ratings (exchange_id, rater_id, rated_user_id, score, comment)
-      VALUES ($1,$2,$3,$4,$5)
-      RETURNING *
-      `,
+      `INSERT INTO ratings (exchange_id, rater_id, rated_user_id, score, comment)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING *`,
       [exchangeId, userId, ratedUser, score, comment || ""]
     );
 
     res.status(201).json(result.rows[0]);
-
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Failed to submit rating" });
   }
 });
 
-/* -------- Ratings received by profile owner -------- */
+// Ratings received by the current user
 router.get("/received", authenticate, async (req, res) => {
-
   try {
-
     const userId = req.user.id;
 
     const { rows } = await pool.query(
-      `
-      SELECT r.score, r.comment, r.created_at,
-             u.name AS reviewer
-      FROM ratings r
-      JOIN users u ON u.id = r.rater_id
-      WHERE r.rated_user_id = $1
-      ORDER BY r.created_at DESC
-      `,
+      `SELECT r.id, r.score, r.comment, r.created_at,
+              u.name AS reviewer
+       FROM ratings r
+       JOIN users u ON u.id = r.rater_id
+       WHERE r.rated_user_id = $1
+       ORDER BY r.created_at DESC`,
       [userId]
     );
 
     res.json(rows);
-
   } catch (err) {
-
     console.error(err);
     res.status(500).json({ message: "Failed to load ratings" });
-
   }
-
 });
 
 export default router;

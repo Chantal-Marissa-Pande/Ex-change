@@ -1,0 +1,49 @@
+<mxfile host="app.diagrams.net" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36" version="29.5.1">
+  <diagram name="Page-1" id="tjMvUb_Y2eF1wAZA75xH">
+    <mxGraphModel dx="383" dy="834" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="0" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="e0irA0_9L-gBaDWV2Pdr-1" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="Frontend (React)" vertex="1">
+          <mxGeometry height="60" width="120" x="107" y="-6" as="geometry" />
+        </mxCell>
+        <mxCell id="e0irA0_9L-gBaDWV2Pdr-2" edge="1" parent="1" source="e0irA0_9L-gBaDWV2Pdr-8" style="endArrow=none;dashed=1;html=1;rounded=0;fontSize=12;startSize=8;endSize=8;curved=1;entryX=0.5;entryY=1;entryDx=0;entryDy=0;exitX=0.5;exitY=0;exitDx=0;exitDy=0;" target="e0irA0_9L-gBaDWV2Pdr-1" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <mxPoint x="162" y="136" as="sourcePoint" />
+            <mxPoint x="157" y="161" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e0irA0_9L-gBaDWV2Pdr-3" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="Backend (Node.js + Express)" vertex="1">
+          <mxGeometry height="60" width="120" x="107" y="128" as="geometry" />
+        </mxCell>
+        <mxCell id="e0irA0_9L-gBaDWV2Pdr-4" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="Database (PostgreSQL)" vertex="1">
+          <mxGeometry height="60" width="120" x="107" y="266" as="geometry" />
+        </mxCell>
+        <mxCell id="e0irA0_9L-gBaDWV2Pdr-6" edge="1" parent="1" source="e0irA0_9L-gBaDWV2Pdr-9" style="endArrow=none;dashed=1;html=1;rounded=0;fontSize=12;startSize=8;endSize=8;curved=1;entryX=0.5;entryY=1;entryDx=0;entryDy=0;exitX=0.5;exitY=0;exitDx=0;exitDy=0;" target="e0irA0_9L-gBaDWV2Pdr-3" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <mxPoint x="142" y="238" as="sourcePoint" />
+            <mxPoint x="142" y="204" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e0irA0_9L-gBaDWV2Pdr-7" edge="1" parent="1" source="e0irA0_9L-gBaDWV2Pdr-3" style="endArrow=none;dashed=1;html=1;rounded=0;fontSize=12;startSize=8;endSize=8;curved=1;entryX=0.5;entryY=1;entryDx=0;entryDy=0;exitX=0.5;exitY=0;exitDx=0;exitDy=0;" target="e0irA0_9L-gBaDWV2Pdr-8" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <mxPoint x="164" y="128" as="sourcePoint" />
+            <mxPoint x="164" y="94" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e0irA0_9L-gBaDWV2Pdr-8" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;" value="API requests" vertex="1">
+          <mxGeometry height="30" width="60" x="137" y="76" as="geometry" />
+        </mxCell>
+        <mxCell id="e0irA0_9L-gBaDWV2Pdr-10" edge="1" parent="1" source="e0irA0_9L-gBaDWV2Pdr-4" style="endArrow=none;dashed=1;html=1;rounded=0;fontSize=12;startSize=8;endSize=8;curved=1;entryX=0.5;entryY=1;entryDx=0;entryDy=0;exitX=0.5;exitY=0;exitDx=0;exitDy=0;" target="e0irA0_9L-gBaDWV2Pdr-9" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <mxPoint x="163" y="265" as="sourcePoint" />
+            <mxPoint x="167" y="188" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e0irA0_9L-gBaDWV2Pdr-9" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;" value="SQL queries" vertex="1">
+          <mxGeometry height="30" width="60" x="137" y="212" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

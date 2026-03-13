@@ -4,7 +4,6 @@ import authenticate from "../middleware/authenticate.js";
 
 const router = express.Router();
 
-// GET top 5 recommended skills for the current user
 router.get("/", authenticate, async (req, res) => {
   try {
     const userId = req.user.id;

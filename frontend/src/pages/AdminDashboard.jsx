@@ -5,6 +5,7 @@ import {
   Pie,
   Tooltip,
   ResponsiveContainer,
+  Cell,
 } from "recharts";
 
 const AdminDashboard = () => {
@@ -16,37 +17,33 @@ const AdminDashboard = () => {
   const [loading, setLoading] = useState(true);
 
   const token = localStorage.getItem("token");
-  axios.get("/api/admin/users", {
-    headers: { Authorization: `Bearer ${token}` 
-    },
-  });
 
   useEffect(() => {
     fetchData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchData = async () => {
     try {
       const headers = { Authorization: `Bearer ${token}` };
 
-      const [
-        statsRes,
-        usersRes,
-        exchangesRes,
-        analyticsRes,
-      ] = await Promise.all([
-        axios.get("/api/admin/stats", { headers }),
-        axios.get("/api/admin/users", { headers }),
-        axios.get("/api/admin/exchanges", { headers }),
-        axios.get("/api/admin/analytics/exchange-status", { headers }),
-      ]);
+      const [statsRes, usersRes, exchangesRes, analyticsRes] =
+        await Promise.all([
+          axios.get("/api/admin/stats", { headers }),
+          axios.get("/api/admin/users", { headers }),
+          axios.get("/api/admin/exchanges", { headers }),
+          axios.get("/api/admin/analytics/exchange-status", { headers }),
+        ]);
 
       setStats(statsRes.data || {});
       setUsers(Array.isArray(usersRes.data) ? usersRes.data : []);
       setExchanges(Array.isArray(exchangesRes.data) ? exchangesRes.data : []);
       setAnalytics(Array.isArray(analyticsRes.data) ? analyticsRes.data : []);
     } catch (err) {
-      console.error("Admin load error:", err.response?.data || err.message);
+      console.error(
+        "Admin load error:",
+        err.response?.data || err.message
+      );
       setUsers([]);
       setExchanges([]);
       setAnalytics([]);
@@ -58,11 +55,15 @@ const AdminDashboard = () => {
   const deleteUser = async (id) => {
     if (!window.confirm("Delete this user?")) return;
 
-    await axios.delete(`/api/admin/users/${id}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    try {
+      await axios.delete(`/api/admin/users/${id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
 
-    setUsers((prev) => prev.filter((u) => u.id !== id));
+      setUsers((prev) => prev.filter((u) => u.id !== id));
+    } catch (err) {
+      console.error("Delete user error:", err.response?.data || err.message);
+    }
   };
 
   const filteredUsers = users.filter((u) =>
@@ -87,7 +88,6 @@ const AdminDashboard = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 text-white p-8">
       <div className="max-w-7xl mx-auto">
-
         <h1 className="text-3xl font-bold mb-10">Admin Dashboard</h1>
 
         {/* Stats */}
@@ -95,7 +95,7 @@ const AdminDashboard = () => {
           <StatCard title="Users" value={stats.total_users} />
           <StatCard title="Listings" value={stats.total_listings} />
           <StatCard title="Exchanges" value={stats.total_exchanges} />
-          <StatCard title="Completed" value={stats.completed_exchanges} />
+          <StatCard title="Completed" value={stats.completed_exchanges || 0} />
         </div>
 
         {/* Analytics */}
@@ -120,9 +120,7 @@ const AdminDashboard = () => {
                     {analytics.map((entry, index) => (
                       <Cell
                         key={index}
-                        fill={
-                          statusColors[entry.status] || "#64748b"
-                        }
+                        fill={statusColors[entry.status] || "#64748b"}
                       />
                     ))}
                   </Pie>
@@ -221,7 +219,6 @@ const AdminDashboard = () => {
             </tbody>
           </table>
         </div>
-
       </div>
     </div>
   );

@@ -10,20 +10,24 @@ router.get("/", authenticate, async (req, res) => {
     const userId = req.user.id;
 
     const incoming = await pool.query(
-      `SELECT e.*, l.title AS listing_title, u.name AS requester_name
+      `SELECT e.id, e.status, e.created_at,
+              l.title AS listing_title, u.name AS requester_name
        FROM exchanges e
        JOIN listings l ON e.listing_id = l.id
        JOIN users u ON e.requester_id = u.id
-       WHERE l.user_id = $1`,
+       WHERE l.user_id = $1
+       ORDER BY e.created_at DESC`,
       [userId]
     );
 
     const outgoing = await pool.query(
-      `SELECT e.*, l.title AS listing_title, u.name AS provider_name
+      `SELECT e.id, e.status, e.created_at,
+              l.title AS listing_title, u.name AS provider_name
        FROM exchanges e
        JOIN listings l ON e.listing_id = l.id
        JOIN users u ON l.user_id = u.id
-       WHERE e.requester_id = $1`,
+       WHERE e.requester_id = $1
+       ORDER BY e.created_at DESC`,
       [userId]
     );
 
