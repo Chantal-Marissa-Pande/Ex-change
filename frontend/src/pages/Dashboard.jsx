@@ -54,6 +54,12 @@ export default function Dashboard() {
     loadDashboard();
   }, []);
 
+  /* JOIN USER ROOM */
+  useEffect(() => {
+    if (!user) return;
+    socket.emit("join_user", user.id);
+  }, [user]); 
+
   /* LOAD EXCHANGES */
   useEffect(() => {
     if (activeTab !== "requests" && activeTab !== "messages") return;
@@ -113,15 +119,19 @@ export default function Dashboard() {
   /* SOCKET CHAT */
   useEffect(() => {
     if (!selectedExchange) return;
-    socket.emit("join_exchange", selectedExchange);
+
     const receiveMessage = (msg) => {
       if (msg.exchangeId !== selectedExchange) return;
+
       setMessages((prev) => [...prev, msg]);
+
       setTimeout(() => {
         messageEndRef.current?.scrollIntoView({ behavior: "smooth" });
       }, 50);
     };
+
     socket.on("receive_message", receiveMessage);
+
     return () => {
       socket.off("receive_message", receiveMessage);
     };
@@ -132,26 +142,25 @@ export default function Dashboard() {
     try {
       const res = await api.get(`/messages/${exchangeId}`);
       setMessages(res.data || []);
+
       setSelectedExchange(exchangeId);
+
+      socket.emit("join_exchange", exchangeId);
     } catch {
       toast.error("Failed to load messages");
     }
   }
 
   /* SEND MESSAGE */
-  async function sendMessage() {
+  function sendMessage() {
     if (!newMessage.trim()) return;
-    const msg = {
+
+    socket.emit("send_message", {
       exchangeId: selectedExchange,
       sender_id: user.id,
       content: newMessage,
-    };
-    socket.emit("send_message", msg);
-    try {
-      await api.post(`/messages/${selectedExchange}`, {
-        content: newMessage,
-      });
-    } catch {}
+    });
+
     setNewMessage("");
   }
 
@@ -302,19 +311,39 @@ export default function Dashboard() {
                     <div
                       key={i}
                       className={`mb-2 ${
-                        m.sender_id === user.id ? "text-right" : ""
+                        m.sender_id === user.id
+                          ? "justify-end"
+                          : "justify-start"
                       }`}
                     >
-                      {m.content}
+                      <div
+                        className = {`px-3 py-2 rounded max-w-xs ${
+                          m.sender_id === user.id 
+                          ? "bg-blue-500 text-white" 
+                          : "bg-gray-200 text-gray-800"
+                        }`}
+                      >
+                        <div className = "text-xs opacity-70">
+                          {m.sender_name || "User"}
+                        </div>
+                        <div>{m.content}</div>
+                      </div>
                     </div>
                   ))}
+
                   <div ref={messageEndRef} />
                 </div>
+
                 <div className="flex gap-2">
                   <input
-                    value={newMessage}
-                    onChange={(e) => setNewMessage(e.target.value)}
-                    className="border flex-1 p-2"
+                    type = "text"
+                    placeholder = "Type your message..."
+                    value = {newMessage}
+                    onChange = {(e) => setNewMessage(e.target.value)}
+                    onKeyDown = {(e) => {
+                      if (e.key === "Enter") sendMessage();
+                    }}
+                    className = "border flex-1 p-2"
                   />
                   <button
                     onClick={sendMessage}

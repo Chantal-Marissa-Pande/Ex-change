@@ -2,6 +2,7 @@ import http from "http";
 import { Server } from "socket.io";
 import dotenv from "dotenv";
 import app from "./app.js";
+import pool from "./config/db.js"; 
 
 dotenv.config();
 const PORT = process.env.PORT || 5000;
@@ -13,9 +14,10 @@ const server = http.createServer(app);
 export const io = new Server(server, {
   cors: {
     origin: "http://localhost:5173",
-    methods: ["GET","POST"]
-  }
+    methods: ["GET", "POST"],
+  },
 });
+
 const onlineUsers = new Set();
 
 /* ---------- Socket Events ---------- */
@@ -27,7 +29,7 @@ io.on("connection", (socket) => {
     socket.join(`exchange_${exchangeId}`);
   });
 
-  /* Join personal notification room */
+  /* Join personal room */
   socket.on("join_user", (userId) => {
     socket.join(`user_${userId}`);
   });
@@ -38,10 +40,38 @@ io.on("connection", (socket) => {
     io.emit("online_users", [...onlineUsers]);
   });
 
-  /* Send chat message */
-  socket.on("send_message", (data) => {
-    io.to(`exchange_${data.exchangeId}`).emit("receive_message", data);
+  /* MESSAGE FLOW */
+  socket.on("send_message", async (data) => {
+    try {
+      const { exchangeId, sender_id, content } = data;
+
+      if (!content?.trim()) return;
+
+      // Save to DB FIRST
+      const result = await pool.query(
+        `INSERT INTO messages (exchange_id, sender_id, content)
+         VALUES ($1, $2, $3)
+         RETURNING *`,
+        [exchangeId, sender_id, content]
+      );
+
+      const message = result.rows[0];
+
+      // Get sender name
+      const userRes = await pool.query(
+        `SELECT name FROM users WHERE id=$1`,
+        [sender_id]
+      );
+
+      message.sender_name = userRes.rows[0].name;
+
+      // Emit to room
+      io.to(`exchange_${exchangeId}`).emit("receive_message", message);
+    } catch (err) {
+      console.error("Socket message error:", err);
+    }
   });
+
   socket.on("disconnect", () => {
     console.log("User disconnected:", socket.id);
   });

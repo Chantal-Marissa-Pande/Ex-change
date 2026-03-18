@@ -5,30 +5,44 @@ import { io } from "../server.js";
 
 const router = express.Router();
 
-/* ---------------- Create Exchange ---------------- */
+/* ================= CREATE EXCHANGE ================= */
 router.post("/", authenticate, async (req, res) => {
   try {
     const { listing_id } = req.body;
     const requester_id = req.user.id;
 
+    if (!listing_id) {
+      return res.status(400).json({ message: "Listing ID required" });
+    }
+
     const listingRes = await pool.query(
       `SELECT user_id FROM listings WHERE id=$1`,
       [listing_id]
     );
+
     if (!listingRes.rows.length) {
       return res.status(404).json({ message: "Listing not found" });
     }
+
     const provider_id = listingRes.rows[0].user_id;
+
+    // Prevent requesting your own listing
+    if (provider_id === requester_id) {
+      return res.status(400).json({ message: "Cannot request your own skill" });
+    }
+
     const result = await pool.query(
       `INSERT INTO exchanges (requester_id, listing_id, status)
        VALUES ($1,$2,'pending')
        RETURNING *`,
       [requester_id, listing_id]
     );
+
     const exchange = result.rows[0];
 
-    /* 🔔 Notify skill owner */
+    /* 🔔 Notify provider */
     io.to(`user_${provider_id}`).emit("new_request", exchange);
+
     res.status(201).json(exchange);
   } catch (err) {
     console.error("Create exchange error:", err);
@@ -36,10 +50,11 @@ router.post("/", authenticate, async (req, res) => {
   }
 });
 
-/* ---------------- Exchanges Created By Me ---------------- */
+/* ================= MY EXCHANGES (SENT + RECEIVED) ================= */
 router.get("/my", authenticate, async (req, res) => {
   try {
     const userId = req.user.id;
+
     const { rows } = await pool.query(
       `
       SELECT 
@@ -48,17 +63,22 @@ router.get("/my", authenticate, async (req, res) => {
         e.created_at,
         l.id AS listing_id,
         s.title AS skill,
-        u.name AS provider_name
+        u1.name AS requester_name,
+        u2.name AS provider_name,
+        e.requester_id,
+        l.user_id AS provider_id
       FROM exchanges e
       JOIN listings l ON e.listing_id = l.id
-      JOIN users u ON u.id = l.user_id
+      JOIN users u1 ON u1.id = e.requester_id
+      JOIN users u2 ON u2.id = l.user_id
       JOIN skill_detail sd ON l.skill_offered_detail_id = sd.id
       JOIN skills s ON sd.skill_id = s.id
-      WHERE e.requester_id = $1
+      WHERE e.requester_id = $1 OR l.user_id = $1
       ORDER BY e.created_at DESC
       `,
       [userId]
     );
+
     res.json(rows);
   } catch (err) {
     console.error("Load exchanges error:", err);
@@ -66,10 +86,11 @@ router.get("/my", authenticate, async (req, res) => {
   }
 });
 
-/* ---------------- Requests Received ---------------- */
+/* ================= REQUESTS RECEIVED ================= */
 router.get("/requests", authenticate, async (req, res) => {
   try {
     const userId = req.user.id;
+
     const { rows } = await pool.query(
       `
       SELECT 
@@ -88,6 +109,7 @@ router.get("/requests", authenticate, async (req, res) => {
       `,
       [userId]
     );
+
     res.json(rows);
   } catch (err) {
     console.error("Load requests error:", err);
@@ -95,11 +117,17 @@ router.get("/requests", authenticate, async (req, res) => {
   }
 });
 
-/* ---------------- Update Exchange Status ---------------- */
+/* ================= UPDATE STATUS ================= */
 router.patch("/:id/status", authenticate, async (req, res) => {
   try {
     const { id } = req.params;
     const { status } = req.body;
+
+    const validStatuses = ["pending", "accepted", "rejected", "completed"];
+
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({ message: "Invalid status" });
+    }
 
     const result = await pool.query(
       `
@@ -110,13 +138,16 @@ router.patch("/:id/status", authenticate, async (req, res) => {
       `,
       [status, id]
     );
+
     if (!result.rows.length) {
       return res.status(404).json({ message: "Exchange not found" });
     }
+
     const exchange = result.rows[0];
 
     /* 🔄 Notify users */
     io.emit("exchange_status_updated", exchange);
+
     res.json(exchange);
   } catch (err) {
     console.error("Update exchange error:", err);

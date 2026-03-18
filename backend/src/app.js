@@ -25,7 +25,7 @@ app.use(express.json());
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/skills", skillRoutes);
-app.use("/api/exchange", exchangeRoutes);
+app.use("/api/exchanges", exchangeRoutes);
 app.use("/api/messages", messageRoutes);
 app.use("/api/ratings", ratingRoutes);
 app.use("/api/ai", aiRoutes);
