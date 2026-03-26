@@ -26,7 +26,6 @@ router.post("/", authenticate, async (req, res) => {
 
     const provider_id = listingRes.rows[0].user_id;
 
-    // Prevent requesting your own listing
     if (provider_id === requester_id) {
       return res.status(400).json({ message: "Cannot request your own skill" });
     }
@@ -38,10 +37,14 @@ router.post("/", authenticate, async (req, res) => {
       [requester_id, listing_id]
     );
 
-    const exchange = result.rows[0];
+    const exchange = {
+      ...result.rows[0],
+      provider_id,
+      requester_id,
+    };
 
-    /* 🔔 Notify provider */
     io.to(`user_${provider_id}`).emit("new_request", exchange);
+    io.to(`user_${requester_id}`).emit("request_sent", exchange);
 
     res.status(201).json(exchange);
   } catch (err) {
@@ -50,7 +53,7 @@ router.post("/", authenticate, async (req, res) => {
   }
 });
 
-/* ================= MY EXCHANGES (SENT + RECEIVED) ================= */
+/* ================= MY EXCHANGES ================= */
 router.get("/my", authenticate, async (req, res) => {
   try {
     const userId = req.user.id;
@@ -86,37 +89,6 @@ router.get("/my", authenticate, async (req, res) => {
   }
 });
 
-/* ================= REQUESTS RECEIVED ================= */
-router.get("/requests", authenticate, async (req, res) => {
-  try {
-    const userId = req.user.id;
-
-    const { rows } = await pool.query(
-      `
-      SELECT 
-        e.id,
-        e.status,
-        e.created_at,
-        s.title AS skill,
-        u.name AS requester
-      FROM exchanges e
-      JOIN listings l ON e.listing_id = l.id
-      JOIN users u ON u.id = e.requester_id
-      JOIN skill_detail sd ON l.skill_offered_detail_id = sd.id
-      JOIN skills s ON sd.skill_id = s.id
-      WHERE l.user_id = $1
-      ORDER BY e.created_at DESC
-      `,
-      [userId]
-    );
-
-    res.json(rows);
-  } catch (err) {
-    console.error("Load requests error:", err);
-    res.status(500).json({ message: "Failed to load requests" });
-  }
-});
-
 /* ================= UPDATE STATUS ================= */
 router.patch("/:id/status", authenticate, async (req, res) => {
   try {
@@ -130,12 +102,7 @@ router.patch("/:id/status", authenticate, async (req, res) => {
     }
 
     const result = await pool.query(
-      `
-      UPDATE exchanges
-      SET status=$1
-      WHERE id=$2
-      RETURNING *
-      `,
+      `UPDATE exchanges SET status=$1 WHERE id=$2 RETURNING *`,
       [status, id]
     );
 
@@ -145,7 +112,6 @@ router.patch("/:id/status", authenticate, async (req, res) => {
 
     const exchange = result.rows[0];
 
-    /* 🔄 Notify users */
     io.emit("exchange_status_updated", exchange);
 
     res.json(exchange);
