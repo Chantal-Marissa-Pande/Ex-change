@@ -1,132 +1,97 @@
 import { useEffect, useState } from "react";
-import { io } from "socket.io-client";
+import socket from "../socket";
 import api from "../api/axios";
 
-const socket = io("http://localhost:5000");
-
 export default function Messages({ exchangeId, currentUser }) {
-
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState("");
 
-  /* -------- Load chat history -------- */
+  /* LOAD HISTORY */
   useEffect(() => {
-
     async function loadMessages() {
-
       try {
-
         const res = await api.get(`/messages/${exchangeId}`);
         setMessages(res.data);
-
       } catch (err) {
         console.error(err);
       }
-
     }
-
     loadMessages();
-
   }, [exchangeId]);
 
-  /* -------- Join socket room -------- */
+  /* SOCKET */
   useEffect(() => {
-
     socket.emit("join_exchange", exchangeId);
 
-    socket.on("receive_message", (msg) => {
-
-      if (msg.exchangeId === exchangeId) {
+    const handler = (msg) => {
+      if (
+        msg.exchangeId === exchangeId ||
+        msg.exchange_id === exchangeId
+      ) {
         setMessages((prev) => [...prev, msg]);
       }
-
-    });
-
-    return () => {
-      socket.off("receive_message");
     };
 
+    socket.on("receive_message", handler);
+
+    return () => socket.off("receive_message", handler);
   }, [exchangeId]);
 
-  /* -------- Send message -------- */
+  /* SEND */
   async function sendMessage() {
-
     if (!text.trim()) return;
 
     try {
-
-      const res = await api.post(`/messages/${exchangeId}`, {
-        content: text
+      await api.post(`/messages/${exchangeId}`, {
+        content: text,
       });
-
-      const newMsg = {
-        ...res.data,
-        exchangeId,
-        sender_id: currentUser.id
-      };
-
-      socket.emit("send_message", newMsg);
-
-      setMessages((prev) => [...prev, newMsg]);
       setText("");
-
     } catch (err) {
-
       console.error(err);
-
     }
-
   }
 
   return (
-    <div style={{ padding: "20px" }}>
-
-      <h2>Exchange Chat</h2>
-
-      <div
-        style={{
-          border: "1px solid #ccc",
-          height: "350px",
-          overflowY: "auto",
-          padding: "10px",
-          marginBottom: "10px"
-        }}
-      >
-
-        {messages.map((m) => (
-
+    <div className="p-4">
+      <div className="border h-[350px] overflow-y-auto p-3 mb-3">
+        {messages.map((m, i) => (
           <div
-            key={m.id || Math.random()}
-            style={{
-              textAlign:
-                m.sender_id === currentUser.id ? "right" : "left",
-              marginBottom: "8px"
-            }}
+            key={i}
+            className={`flex mb-2 ${
+              m.sender_id === currentUser.id
+                ? "justify-end"
+                : "justify-start"
+            }`}
           >
-
-            <b>{m.sender_name || "You"}:</b> {m.content}
-
+            <div
+              className={`px-3 py-2 rounded max-w-xs ${
+                m.sender_id === currentUser.id
+                  ? "bg-blue-500 text-white"
+                  : "bg-gray-200"
+              }`}
+            >
+              <div className="text-xs opacity-70">
+                {m.sender_name || "User"}
+              </div>
+              {m.content}
+            </div>
           </div>
-
         ))}
-
       </div>
 
-      <div style={{ display: "flex", gap: "10px" }}>
-
+      <div className="flex gap-2">
         <input
           value={text}
           onChange={(e) => setText(e.target.value)}
-          placeholder="Type a message..."
-          style={{ flex: 1 }}
+          className="border flex-1 p-2"
         />
-
-        <button onClick={sendMessage}>
+        <button
+          onClick={sendMessage}
+          className="bg-blue-600 text-white px-4"
+        >
           Send
         </button>
-
       </div>
-
     </div>
   );
 }

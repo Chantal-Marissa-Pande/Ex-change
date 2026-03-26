@@ -66,7 +66,9 @@ io.on("connection", (socket) => {
       message.sender_name = userRes.rows[0].name;
 
       // Emit to room
-      io.to(`exchange_${exchangeId}`).emit("receive_message", message);
+      io.to(`exchange_${exchangeId}`).emit("receive_message",{
+        ...message
+      });
     } catch (err) {
       console.error("Socket message error:", err);
     }

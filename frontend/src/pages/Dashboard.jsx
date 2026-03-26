@@ -121,7 +121,11 @@ export default function Dashboard() {
     if (!selectedExchange) return;
 
     const receiveMessage = (msg) => {
-      if (msg.exchangeId !== selectedExchange) return;
+      if (
+        msg.exchangeId !== selectedExchange && 
+        msg.exchange_id !== selectedExchange
+      ) 
+        return;
 
       setMessages((prev) => [...prev, msg]);
 
@@ -278,6 +282,7 @@ export default function Dashboard() {
                 <div key={ex.id} className="border p-3 mb-2">
                   <p><b>Skill:</b> {ex.skill}</p>
                   <p><b>Status:</b> {ex.status}</p>
+                  
                   <p className="text-gray-400 text-sm">
                     {new Date(ex.created_at).toLocaleDateString()}
                   </p>
