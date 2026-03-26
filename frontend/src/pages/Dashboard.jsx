@@ -18,6 +18,7 @@ import {
 } from "chart.js";
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
+
 export default function Dashboard() {
   const navigate = useNavigate();
   const messageEndRef = useRef(null);
@@ -43,8 +44,13 @@ export default function Dashboard() {
         const userRes = await api.get("/users/me");
         setUser(userRes.data);
         setProfileSkills(userRes.data.skills || []);
+
         const skillsRes = await api.get("/skills");
-        setMarketplaceSkills(skillsRes.data || []);
+        const filtered = (skillsRes.data || []).filter(
+          (s) => s.user_id !== userRes.data.id
+        );
+
+        setMarketplaceSkills(filtered);
       } catch {
         toast.error("Failed to load dashboard");
       } finally {
@@ -58,98 +64,93 @@ export default function Dashboard() {
   useEffect(() => {
     if (!user) return;
     socket.emit("join_user", user.id);
-  }, [user]); 
+  }, [user]);
 
   /* LOAD EXCHANGES */
   useEffect(() => {
-    if (activeTab !== "requests" && activeTab !== "messages") return;
-    async function loadExchanges() {
-      try {
-        const res = await api.get("/exchanges/my");
-        setExchanges(res.data || []);
-      } catch {
-        toast.error("Failed to load exchanges");
-      }
-    }
-    loadExchanges();
+    if (!["requests", "messages"].includes(activeTab)) return;
+
+    api.get("/exchanges/my")
+      .then((res) => setExchanges(res.data || []))
+      .catch(() => toast.error("Failed to load exchanges"));
   }, [activeTab]);
+
+  
 
   /* LOAD RATINGS */
   useEffect(() => {
     if (activeTab !== "ratings") return;
-    async function loadRatings() {
-      try {
-        const res = await api.get("/ratings/received");
-        setRatings(res.data || []);
-      } catch {
-        toast.error("Failed to load ratings");
-      }
-    }
-    loadRatings();
+
+    api.get("/ratings/received")
+      .then((res) => setRatings(res.data || []))
+      .catch(() => toast.error("Failed to load ratings"));
   }, [activeTab]);
 
   /* LOAD RECOMMENDATIONS */
   useEffect(() => {
     if (activeTab !== "recommendations") return;
-    async function loadRecommendations() {
+
+    async function loadRecommendations (){
       try {
-        const res = await api.get("/recommendations");
+        const res = await api.get ("/ai-recommendations");
         setRecommendations(res.data || []);
       } catch {
         setRecommendations([]);
       }
     }
+
     loadRecommendations();
   }, [activeTab]);
 
   /* LOAD ANALYTICS */
   useEffect(() => {
     if (activeTab !== "analytics") return;
-    async function loadAnalytics() {
-      try {
-        const res = await api.get("/analytics");
-        setAnalyticsData(res.data || null);
-      } catch {
-        toast.error("Failed to load analytics");
-      }
-    }
-    loadAnalytics();
+
+    api.get("/analytics")
+      .then((res) => setAnalyticsData(res.data))
+      .catch(() => toast.error("Failed to load analytics"));
   }, [activeTab]);
 
   /* SOCKET CHAT */
   useEffect(() => {
     if (!selectedExchange) return;
 
-    const receiveMessage = (msg) => {
-      if (
-        msg.exchangeId !== selectedExchange && 
-        msg.exchange_id !== selectedExchange
-      ) 
-        return;
+    const receive = (msg) => {
+      const normalized = {
+        ...msg,
+        message: msg.message || msg.content
+      };
 
-      setMessages((prev) => [...prev, msg]);
+      if (
+        normalized.exchangeId !== selectedExchange &&
+        normalized.exchange_id !== selectedExchange
+      ) return;
+
+      setMessages((prev) => [...prev, normalized]);
 
       setTimeout(() => {
         messageEndRef.current?.scrollIntoView({ behavior: "smooth" });
       }, 50);
     };
 
-    socket.on("receive_message", receiveMessage);
-
-    return () => {
-      socket.off("receive_message", receiveMessage);
-    };
+    socket.on("receive_message", receive);
+    return () => socket.off("receive_message", receive);
   }, [selectedExchange]);
 
   /* LOAD MESSAGES */
-  async function loadMessages(exchangeId) {
+  async function loadMessages(id) {
     try {
-      const res = await api.get(`/messages/${exchangeId}`);
-      setMessages(res.data || []);
+      const res = await api.get(`/messages/${id}`);
 
-      setSelectedExchange(exchangeId);
+      const normalized = (res.data || []).map(m => ({
+        ...m,
+        message: m.message || m.content
+      }));
 
-      socket.emit("join_exchange", exchangeId);
+      setMessages(normalized);
+
+      setSelectedExchange(id);
+      socket.emit("join_exchange", id);
     } catch {
       toast.error("Failed to load messages");
     }
@@ -162,10 +163,27 @@ export default function Dashboard() {
     socket.emit("send_message", {
       exchangeId: selectedExchange,
       sender_id: user.id,
-      content: newMessage,
+      message: newMessage,
     });
 
     setNewMessage("");
+  }
+
+  /* UPDATE STATUS */
+  async function updateStatus(id, status) {
+    try {
+      const res = await api.patch(`/exchanges/${id}/status`, { status });
+
+      setExchanges(prev =
+        prev.map(ex =>
+          ex.id === id ? {...ex, status: res.data.status} : ex
+        )
+      );
+
+      toast.success(`Exchange ${status}`);
+    }catch {
+      toast.error("Failed")
+    }
   }
 
   /* DELETE SKILL */
@@ -183,7 +201,6 @@ export default function Dashboard() {
   /* ADD SKILL */
   function handleAddSkill(skill) {
     setProfileSkills((prev) => [skill, ...prev]);
-    setMarketplaceSkills((prev) => [skill, ...prev]);
   }
 
   /* LOGOUT */
@@ -191,6 +208,7 @@ export default function Dashboard() {
     localStorage.removeItem("token");
     navigate("/login");
   }
+
   if (loading) return <div className="p-10 text-center">Loading dashboard...</div>;
 
   return (
@@ -223,9 +241,7 @@ export default function Dashboard() {
               key={tab}
               onClick={() => setActiveTab(tab)}
               className={`px-4 py-2 rounded ${
-                activeTab === tab
-                  ? "bg-blue-600 text-white"
-                  : "bg-gray-300"
+                activeTab === tab ? "bg-blue-600 text-white" : "bg-gray-300"
               }`}
             >
               {tab}
@@ -247,6 +263,7 @@ export default function Dashboard() {
           <div className="bg-white p-6 rounded shadow">
             <p><b>Name:</b> {user?.name}</p>
             <p><b>Email:</b> {user?.email}</p>
+
             <h3 className="mt-4 font-semibold">My Skills</h3>
 
             {profileSkills.map((skill) => (
@@ -263,11 +280,9 @@ export default function Dashboard() {
                 </button>
               </div>
             ))}
+
             <div className="mt-4">
-              <AddSkillForm
-                currentUser={user}
-                onSkillAdded={handleAddSkill}
-              />
+              <AddSkillForm currentUser={user} onSkillAdded={handleAddSkill} />
             </div>
           </div>
         )}
@@ -282,7 +297,28 @@ export default function Dashboard() {
                 <div key={ex.id} className="border p-3 mb-2">
                   <p><b>Skill:</b> {ex.skill}</p>
                   <p><b>Status:</b> {ex.status}</p>
-                  
+
+                  {ex.status === "pending" && (
+                    <>
+                      <button
+                        OnClick = {() => updateStatus(ex.id, "accepted")}
+                        className="bg-green-500 text-white px-2 mr-2"
+                      >
+                        Accept
+                      </button>
+
+                      <button
+                        OnClick = {() => updateStatus(ex.id, "rejected")}
+                        className="bg-red-500 text-white px-2 mr-2"
+                      >
+                        Reject
+                      </button>
+                    </>
+                  )}
+
+                  {ex.status !== "pending" && (
+                    <span className = "text-gray-500">Already {ex.status}</span>
+                  )}
                   <p className="text-gray-400 text-sm">
                     {new Date(ex.created_at).toLocaleDateString()}
                   </p>
@@ -298,7 +334,6 @@ export default function Dashboard() {
             {!selectedExchange ? (
               <>
                 <h2 className="font-semibold mb-3">Select Exchange</h2>
-
                 {exchanges.map((ex) => (
                   <button
                     key={ex.id}
@@ -313,42 +348,31 @@ export default function Dashboard() {
               <>
                 <div className="h-64 overflow-y-auto border p-3 mb-3">
                   {messages.map((m, i) => (
-                    <div
-                      key={i}
-                      className={`mb-2 ${
-                        m.sender_id === user.id
-                          ? "justify-end"
-                          : "justify-start"
-                      }`}
-                    >
+                    <div key={i} className="mb-2">
                       <div
-                        className = {`px-3 py-2 rounded max-w-xs ${
-                          m.sender_id === user.id 
-                          ? "bg-blue-500 text-white" 
-                          : "bg-gray-200 text-gray-800"
+                        className={`px-3 py-2 rounded max-w-xs ${
+                          m.sender_id === user.id
+                            ? "bg-blue-500 text-white ml-auto"
+                            : "bg-gray-200 text-gray-800"
                         }`}
                       >
-                        <div className = "text-xs opacity-70">
+                        <div className="text-xs opacity-70">
                           {m.sender_name || "User"}
                         </div>
-                        <div>{m.content}</div>
+                        <div>{m.message}</div>
                       </div>
                     </div>
                   ))}
-
                   <div ref={messageEndRef} />
                 </div>
 
                 <div className="flex gap-2">
                   <input
-                    type = "text"
-                    placeholder = "Type your message..."
-                    value = {newMessage}
-                    onChange = {(e) => setNewMessage(e.target.value)}
-                    onKeyDown = {(e) => {
-                      if (e.key === "Enter") sendMessage();
-                    }}
-                    className = "border flex-1 p-2"
+                    type="text"
+                    value={newMessage}
+                    onChange={(e) => setNewMessage(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && sendMessage()}
+                    className="border flex-1 p-2"
                   />
                   <button
                     onClick={sendMessage}
@@ -372,9 +396,6 @@ export default function Dashboard() {
                 <div key={r.id} className="border p-3 mb-2">
                   ⭐ {r.score} by <b>{r.reviewer}</b>
                   <p>{r.comment}</p>
-                  <small className="text-gray-400">
-                    {new Date(r.created_at).toLocaleDateString()}
-                  </small>
                 </div>
               ))
             )}
@@ -387,12 +408,9 @@ export default function Dashboard() {
             {recommendations.length === 0 ? (
               <p>No recommendations yet</p>
             ) : (
-              recommendations.map((skill) => (
-                <div key={skill.id} className="border p-3 mb-2">
-                  <b>{skill.title}</b>
-                  <p className="text-gray-500 text-sm">
-                    Tags: {skill.tags}
-                  </p>
+              recommendations.map((s) => (
+                <div key={s.id}>
+                  {s.title} ({s.score})
                 </div>
               ))
             )}
@@ -400,18 +418,25 @@ export default function Dashboard() {
         )}
 
         {/* ANALYTICS */}
-        {activeTab === "analytics" && analyticsData && (
-          <div className="bg-white p-6 rounded shadow">
-            <h2 className="font-semibold mb-4">Platform Analytics</h2>
-            <Bar
-              data={analyticsData.chart}
-              options={{
-                responsive: true,
-                plugins: { legend: { position: "top" } },
-              }}
-            />
+        {activeTab === "analytics" && (
+          <div>
+            {!analyticsData ? (
+              <p>Loading analytics...</p>
+            ) : (
+              <>
+                <div className="grid grid-cols-3 gap-4 mb-4">
+                  <div>Users: {analyticsData.totals?.users || 0}</div>
+                  <div>Skills: {analyticsData.totals?.skills || 0}</div>
+                  <div>Exchanges: {analyticsData.totals?.exchanges || 0}</div>
+                </div>
+
+                <Bar data={analyticsData.chart} />
+                <Bar data={analyticsData.monthlyExchanges} />
+              </>
+            )}
           </div>
         )}
+
       </div>
     </div>
   );

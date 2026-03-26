@@ -4,8 +4,9 @@ import { useNavigate } from "react-router-dom";
 export default function Skills({ marketplaceSkills = [] }) {
   const navigate = useNavigate();
 
-  const [skills,setSkills]=useState(marketplaceSkills);
+  const [skills,setSkills] = useState([]);
   const [query,setQuery]=useState("");
+
   useEffect(()=>{
     setSkills(marketplaceSkills);
   },[marketplaceSkills]);

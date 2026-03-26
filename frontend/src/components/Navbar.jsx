@@ -12,21 +12,6 @@ export default function Navbar() {
         <img src={logo} alt="Ex-change Logo" className="h-20" />
         <span className="font-bold text-xl">Ex-change</span>
       </div>
-      
-     <div className="flex gap-4">
-        <button
-          onClick={() => navigate("/login")}
-          className="hover:underline"
-        >
-          Login
-        </button>
-        <button
-          onClick={() => navigate("/register")}
-          className="hover:underline"
-        >
-          Register
-        </button>
-      </div>
     </nav>
   );
 }

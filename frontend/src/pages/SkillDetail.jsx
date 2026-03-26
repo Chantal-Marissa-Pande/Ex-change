@@ -28,10 +28,19 @@ export default function SkillDetail({ currentUser }) {
   useEffect(()=>{ fetchSkill(); }, [skillId]);
 
   const sendRequest = async () => {
-    if (!skill?.listing_id) { toast.error("This skill has no active listing"); return; }
+    if (!skill?.listing_id) { 
+      toast.error("This skill has no active listing"); 
+      return; 
+    }
+
     try {
-      await api.post("/exchange", { listing_id: skill.listing_id, message });
+      await api.post("/exchanges", { 
+        listing_id: skill.listing_id, message 
+      });
+
       toast.success("Request sent successfully!");
+      setMessage("");
+      
       setCanRate(true);
       setMessage("");
     } catch(err) {

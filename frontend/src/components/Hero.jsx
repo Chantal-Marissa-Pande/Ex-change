@@ -1,6 +1,6 @@
 import React from "react";
 
-export default function Hero({ onGetStarted, onExploreSkills }) {
+export default function Hero({ onGetStarted, onSignin }) {
   return (
     <section className="bg-background py-20 text-center">
       <h1 className="text-primary text-4xl font-bold mb-4">
@@ -17,10 +17,10 @@ export default function Hero({ onGetStarted, onExploreSkills }) {
           Get Started
         </button>
         <button
-          onClick={onExploreSkills}
+          onClick={onSignin}
           className="bg-primary text-white px-6 py-3 rounded-lg font-medium hover:opacity-90"
         >
-          Explore Skills
+          Sign In
         </button>
       </div>
     </section>

@@ -12,7 +12,7 @@ export default function LandingPage() {
       <Navbar />
       <Hero
         onGetStarted={() => navigate("/register")}
-        onExploreSkills={() => navigate("/skills")}
+        onSignin={() => navigate("/login")}
       />
       <HowItWorks />
     </div>
