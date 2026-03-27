@@ -8,7 +8,7 @@ const router = express.Router();
 /* ================= CREATE EXCHANGE ================= */
 router.post("/", authenticate, async (req, res) => {
   try {
-    const { listing_id } = req.body;
+    const { listing_id, message } = req.body;
     const requester_id = req.user.id;
 
     if (!listing_id) {
@@ -30,18 +30,31 @@ router.post("/", authenticate, async (req, res) => {
       return res.status(400).json({ message: "Cannot request your own skill" });
     }
 
-    const result = await pool.query(
-      `INSERT INTO exchanges (requester_id, listing_id, status)
-       VALUES ($1,$2,'pending')
-       RETURNING *`,
+    const existing = await pool.query(
+      `SELECT * FROM exchanges WHERE requester_id = $1 AND listing_id = $2`,
       [requester_id, listing_id]
     );
 
-    const exchange = {
-      ...result.rows[0],
-      provider_id,
-      requester_id,
-    };
+    if (existing.rows.length) {
+      return res.status(400).json({message:"Request already exists"});
+    }
+
+    const exchangeRes = await pool.query(
+      `INSERT INTO exchanges (requester_id, listing_id, status)
+      VALUES ($1, $2, 'pending')
+      RETURNING *`,
+      [requester_id, listing_id]
+    );
+
+    const exchange = exchangeRes.rows[0];
+
+    if (message && message.trim()) {
+      await pool.query(
+        `INSERT INTO messages (exchange_id, sender_id, content)
+        VALUES ($1, $2, $3)`,
+        [exchange.id, requester_id, message]
+      );
+    }
 
     io.to(`user_${provider_id}`).emit("new_request", exchange);
     io.to(`user_${requester_id}`).emit("request_sent", exchange);
@@ -96,7 +109,6 @@ router.patch("/:id/status", authenticate, async (req, res) => {
     const { status } = req.body;
 
     const validStatuses = ["pending", "accepted", "rejected", "completed"];
-
     if (!validStatuses.includes(status)) {
       return res.status(400).json({ message: "Invalid status" });
     }

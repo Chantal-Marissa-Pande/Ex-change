@@ -75,8 +75,6 @@ export default function Dashboard() {
       .catch(() => toast.error("Failed to load exchanges"));
   }, [activeTab]);
 
-  
-
   /* LOAD RATINGS */
   useEffect(() => {
     if (activeTab !== "ratings") return;
@@ -90,11 +88,12 @@ export default function Dashboard() {
   useEffect(() => {
     if (activeTab !== "recommendations") return;
 
-    async function loadRecommendations (){
+    async function loadRecommendations() {
       try {
-        const res = await api.get ("/ai-recommendations");
+        const res = await api.get("/ai-recommendations");
         setRecommendations(res.data || []);
       } catch {
+        toast.error("No AI recommendations");
         setRecommendations([]);
       }
     }
@@ -118,13 +117,14 @@ export default function Dashboard() {
     const receive = (msg) => {
       const normalized = {
         ...msg,
-        message: msg.message || msg.content
+        message: msg.message || msg.content,
       };
 
       if (
         normalized.exchangeId !== selectedExchange &&
         normalized.exchange_id !== selectedExchange
-      ) return;
+      )
+        return;
 
       setMessages((prev) => [...prev, normalized]);
 
@@ -142,9 +142,9 @@ export default function Dashboard() {
     try {
       const res = await api.get(`/messages/${id}`);
 
-      const normalized = (res.data || []).map(m => ({
+      const normalized = (res.data || []).map((m) => ({
         ...m,
-        message: m.message || m.content
+        message: m.message || m.content,
       }));
 
       setMessages(normalized);
@@ -174,15 +174,20 @@ export default function Dashboard() {
     try {
       const res = await api.patch(`/exchanges/${id}/status`, { status });
 
-      setExchanges(prev =
-        prev.map(ex =>
-          ex.id === id ? {...ex, status: res.data.status} : ex
+      setExchanges((prev) =>
+        prev.map((ex) =>
+          ex.id === id ? { ...ex, status: res.data.status } : ex
         )
       );
 
       toast.success(`Exchange ${status}`);
-    }catch {
-      toast.error("Failed")
+
+      if (status === "accepted") {
+        setActiveTab("messages");
+        loadMessages(id);
+      }
+    } catch {
+      toast.error("Failed to update status");
     }
   }
 
@@ -214,7 +219,6 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen bg-gray-100 p-6">
       <div className="max-w-6xl mx-auto">
-
         {/* HEADER */}
         <div className="flex justify-between mb-6">
           <h1 className="text-3xl font-bold">Welcome {user?.name}</h1>
@@ -261,8 +265,12 @@ export default function Dashboard() {
         {/* PROFILE */}
         {activeTab === "profile" && (
           <div className="bg-white p-6 rounded shadow">
-            <p><b>Name:</b> {user?.name}</p>
-            <p><b>Email:</b> {user?.email}</p>
+            <p>
+              <b>Name:</b> {user?.name}
+            </p>
+            <p>
+              <b>Email:</b> {user?.email}
+            </p>
 
             <h3 className="mt-4 font-semibold">My Skills</h3>
 
@@ -290,41 +298,90 @@ export default function Dashboard() {
         {/* REQUESTS */}
         {activeTab === "requests" && (
           <div className="bg-white p-6 rounded shadow">
-            {exchanges.length === 0 ? (
-              <p>No requests yet</p>
-            ) : (
-              exchanges.map((ex) => (
+            <h2 className="font-semibold mb-3">Incoming Requests</h2>
+            {exchanges
+              .filter((ex) => ex.provider_id === user.id)
+              .map((ex) => (
                 <div key={ex.id} className="border p-3 mb-2">
-                  <p><b>Skill:</b> {ex.skill}</p>
-                  <p><b>Status:</b> {ex.status}</p>
+                  <p>
+                    <b>Skill:</b> {ex.skill}
+                  </p>
+                  <p>
+                    <b>From:</b> {ex.requester_name}
+                  </p>
+                  <p>
+                    <b>Status:</b>{" "}
+                    <span
+                      className={
+                        ex.status === "pending"
+                          ? "text-yellow-600"
+                          : ex.status === "accepted"
+                          ? "text-green-600"
+                          : ex.status === "completed"
+                          ? "text-blue-600"
+                          : "text-red-600"
+                      }
+                    >
+                      {ex.status}
+                    </span>
+                  </p>
 
+                  {/* ACTION BUTTONS */}
                   {ex.status === "pending" && (
                     <>
                       <button
-                        OnClick = {() => updateStatus(ex.id, "accepted")}
+                        onClick={() => updateStatus(ex.id, "accepted")}
                         className="bg-green-500 text-white px-2 mr-2"
                       >
                         Accept
                       </button>
-
                       <button
-                        OnClick = {() => updateStatus(ex.id, "rejected")}
-                        className="bg-red-500 text-white px-2 mr-2"
+                        onClick={() => updateStatus(ex.id, "rejected")}
+                        className="bg-red-500 text-white px-2"
                       >
                         Reject
                       </button>
                     </>
                   )}
 
-                  {ex.status !== "pending" && (
-                    <span className = "text-gray-500">Already {ex.status}</span>
+                  {ex.status === "accepted" && (
+                    <>
+                      <button
+                        onClick={() => updateStatus(ex.id, "completed")}
+                        className="bg-blue-500 text-white px-2 mt-2"
+                      >
+                        Mark as completed
+                      </button>
+                      <button
+                        onClick={() => {
+                          setActiveTab("messages");
+                          loadMessages(ex.id);
+                        }}
+                        className="bg-gray-700 text-white px-2 mt-2"
+                      >
+                        Open Chat
+                      </button>
+                    </>
                   )}
-                  <p className="text-gray-400 text-sm">
-                    {new Date(ex.created_at).toLocaleDateString()}
+                </div>
+              ))}
+
+            <h2 className="font-semibold mt-6 mb-3">Sent Requests</h2>
+            {exchanges
+              .filter((ex) => ex.requester_id === user.id)
+              .map((ex) => (
+                <div key={ex.id} className="border p-3 mb-2">
+                  <p>
+                    <b>Skill:</b> {ex.skill}
+                  </p>
+                  <p>
+                    <b>To:</b> {ex.provider_name}
+                  </p>
+                  <p>
+                    <b>Status:</b> {ex.status}
                   </p>
                 </div>
-              ))
-            )}
+              ))}
           </div>
         )}
 
@@ -436,7 +493,6 @@ export default function Dashboard() {
             )}
           </div>
         )}
-
       </div>
     </div>
   );
