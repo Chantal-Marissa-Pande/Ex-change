@@ -1,4 +1,3 @@
-import React from "react";
 import { LightBulbIcon, HandThumbUpIcon, BookOpenIcon } from "@heroicons/react/24/solid";
 
 const steps = [

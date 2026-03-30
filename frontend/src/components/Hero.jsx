@@ -1,5 +1,3 @@
-import React from "react";
-
 export default function Hero({ onGetStarted, onSignin }) {
   return (
     <section className="bg-background py-20 text-center">

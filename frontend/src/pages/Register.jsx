@@ -29,7 +29,6 @@ export default function Register() {
     try {
       setLoading(true);
 
-      // ✅ FIXED (removed /api)
       const res = await api.post("/auth/register", {
         name,
         email,
