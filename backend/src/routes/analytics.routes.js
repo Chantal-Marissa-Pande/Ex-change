@@ -1,86 +1,63 @@
 import express from "express";
 import pool from "../config/db.js";
+import authenticate from "../middleware/authenticate.js";
 
 const router = express.Router();
 
-/* ---------------- Dashboard Analytics ---------------- */
-router.get("/", async (req, res) => {
+router.get("/", authenticate, async (req, res) => {
   try {
-    // ---------- Basic counts ----------
+    // Totals
     const usersRes = await pool.query(`SELECT COUNT(*) FROM users`);
     const skillsRes = await pool.query(`SELECT COUNT(*) FROM skills`);
     const exchangesRes = await pool.query(`SELECT COUNT(*) FROM exchanges`);
 
-    const totalUsers = Number(usersRes.rows[0].count);
-    const totalSkills = Number(skillsRes.rows[0].count);
-    const totalExchanges = Number(exchangesRes.rows[0].count);
-
-    // ---------- Popular skills ----------
-    const popularSkillsRes = await pool.query(`
-      SELECT s.title, COUNT(e.id) AS exchange_count
-      FROM exchanges e
-      JOIN listings l ON e.listing_id = l.id
-      JOIN skill_detail sd ON l.skill_offered_detail_id = sd.id
-      JOIN skills s ON sd.skill_id = s.id
-      GROUP BY s.title
-      ORDER BY exchange_count DESC
-      LIMIT 5
-    `);
-
-    const skillLabels = popularSkillsRes.rows.map(r => r.title);
-    const skillCounts = popularSkillsRes.rows.map(r => Number(r.exchange_count));
-
-    const chartData = {
-      labels: skillLabels.length ? skillLabels : ["No Data"],
-      datasets: [
-        {
-          label: "Most Exchanged Skills",
-          data: skillCounts.length ? skillCounts : [0],
-          backgroundColor: "rgba(54, 162, 235, 0.6)",
-          borderColor: "rgba(54, 162, 235, 1)",
-          borderWidth: 1,
-        },
-      ],
+    const totals = {
+      users: parseInt(usersRes.rows[0].count),
+      skills: parseInt(skillsRes.rows[0].count),
+      exchanges: parseInt(exchangesRes.rows[0].count),
     };
 
-    // ---------- Monthly exchanges ----------
-    const monthlyExchangesRes = await pool.query(`
-      SELECT TO_CHAR(created_at, 'YYYY-MM') AS month, COUNT(*) AS count
+    // Status chart
+    const statusRes = await pool.query(`
+      SELECT status, COUNT(*) AS count
+      FROM exchanges
+      GROUP BY status
+    `);
+
+    const chart = {
+      labels: statusRes.rows.map(r => r.status),
+      datasets: [
+        {
+          label: "Exchanges",
+          data: statusRes.rows.map(r => parseInt(r.count)),
+          backgroundColor: ["#F59E0B", "#10B981", "#3B82F6", "#EF4444"]
+        }
+      ]
+    };
+
+    // Monthly chart
+    const monthlyRes = await pool.query(`
+      SELECT DATE_TRUNC('month', created_at) AS month, COUNT(*) AS count
       FROM exchanges
       GROUP BY month
       ORDER BY month
     `);
 
-    const monthlyExchangesLabels = monthlyExchangesRes.rows.map(r => r.month);
-    const monthlyExchangesCounts = monthlyExchangesRes.rows.map(r => Number(r.count));
-
-    const monthlyExchangesChart = {
-      labels: monthlyExchangesLabels.length ? monthlyExchangesLabels : ["No Data"],
+    const monthlyExchanges = {
+      labels: monthlyRes.rows.map(r => r.month),
       datasets: [
         {
-          label: "Exchanges per Month",
-          data: monthlyExchangesCounts.length ? monthlyExchangesCounts : [0],
-          backgroundColor: "rgba(255, 99, 132, 0.6)",
-          borderColor: "rgba(255, 99, 132, 1)",
-          borderWidth: 1,
-        },
-      ],
+          label: "Monthly Exchanges",
+          data: monthlyRes.rows.map(r => parseInt(r.count)),
+          backgroundColor: "#3B82F6"
+        }
+      ]
     };
 
-    // ---------- Return JSON ----------
-    res.json({
-      totals: {
-        users: totalUsers,
-        skills: totalSkills,
-        exchanges: totalExchanges,
-      },
-      chart: chartData,
-      monthlyExchanges: monthlyExchangesChart,
-    });
-
+    res.json({ totals, chart, monthlyExchanges });
   } catch (err) {
     console.error("Analytics error:", err);
-    res.status(500).json({ message: "Failed to fetch analytics" });
+    res.status(500).json({ message: "Failed to load analytics" });
   }
 });
 

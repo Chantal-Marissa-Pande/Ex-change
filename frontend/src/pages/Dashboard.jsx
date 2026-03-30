@@ -37,6 +37,11 @@ export default function Dashboard() {
   const [activeTab, setActiveTab] = useState("skills");
   const [loading, setLoading] = useState(true);
 
+  const [showRating, setShowRating] = useState(false);
+  const [ratingExchange, setRatingExchange] = useState(null);
+  const [ratingScore, setRatingScore] = useState(5);
+  const [ratingComment, setRatingComment] = useState("");
+
   /* LOAD USER + SKILLS */
   useEffect(() => {
     async function loadDashboard() {
@@ -79,6 +84,7 @@ export default function Dashboard() {
   useEffect(() => {
     if (activeTab !== "ratings") return;
 
+
     api.get("/ratings/received")
       .then((res) => setRatings(res.data || []))
       .catch(() => toast.error("Failed to load ratings"));
@@ -112,30 +118,28 @@ export default function Dashboard() {
 
   /* SOCKET CHAT */
   useEffect(() => {
-    if (!selectedExchange) return;
+  if (!selectedExchange) return;
 
-    const receive = (msg) => {
-      const normalized = {
-        ...msg,
-        message: msg.message || msg.content,
-      };
-
-      if (
-        normalized.exchangeId !== selectedExchange &&
-        normalized.exchange_id !== selectedExchange
-      )
-        return;
-
-      setMessages((prev) => [...prev, normalized]);
-
-      setTimeout(() => {
-        messageEndRef.current?.scrollIntoView({ behavior: "smooth" });
-      }, 50);
+  const receive = (msg) => {
+    const normalized = {
+      ...msg,
+      message: msg.message || msg.content,
     };
 
-    socket.on("receive_message", receive);
-    return () => socket.off("receive_message", receive);
-  }, [selectedExchange]);
+    const exchangeId = msg.exchangeId || msg.exchange_id;
+
+    if (Number(exchangeId) !== Number(selectedExchange)) return;
+
+    setMessages((prev) => [...prev, normalized]);
+
+    setTimeout(() => {
+      messageEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }, 50);
+  };
+
+  socket.on("receive_message", receive);
+  return () => socket.off("receive_message", receive);
+}, [selectedExchange]);
 
   /* LOAD MESSAGES */
   async function loadMessages(id) {
@@ -147,10 +151,14 @@ export default function Dashboard() {
         message: m.message || m.content,
       }));
 
+      setSelectedExchange(id);
       setMessages(normalized);
 
-      setSelectedExchange(id);
       socket.emit("join_exchange", id);
+
+      setTimeout(() => {
+        messageEndRef.current?.scrollIntoView({ behavior: "smooth" });
+      }, 100);
     } catch {
       toast.error("Failed to load messages");
     }
@@ -158,17 +166,24 @@ export default function Dashboard() {
 
   /* SEND MESSAGE */
   function sendMessage() {
-    if (!newMessage.trim()) return;
+  if (!newMessage.trim() || !selectedExchange) return;
 
-    socket.emit("send_message", {
-      exchangeId: selectedExchange,
+  socket.emit("send_message", {
+    exchangeId: selectedExchange,
+    sender_id: user.id,
+    message: newMessage,
+  });
+
+  setMessages((prev) => [
+    ...prev,
+    {
       sender_id: user.id,
       message: newMessage,
-    });
+    },
+  ]);
 
-    setNewMessage("");
-  }
-
+  setNewMessage("");
+}
   /* UPDATE STATUS */
   async function updateStatus(id, status) {
     try {
@@ -212,6 +227,27 @@ export default function Dashboard() {
   function handleLogout() {
     localStorage.removeItem("token");
     navigate("/login");
+  }
+
+  /*SUBMIT RATING*/
+  async function submitRating() {
+    try {
+      await api.post(`/ratings/${ratingExchange}`, {
+        score: ratingScore,
+        comment: ratingComment,
+      });
+
+      toast.success("Rating submitted");
+      setShowRating(false);
+      setRatingScore(5);
+      setRatingComment("");
+
+      // reload ratings
+      const res = await api.get("/ratings/received");
+      setRatings(res.data || []);
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Rating failed");
+    }
   }
 
   if (loading) return <div className="p-10 text-center">Loading dashboard...</div>;
@@ -300,7 +336,7 @@ export default function Dashboard() {
           <div className="bg-white p-6 rounded shadow">
             <h2 className="font-semibold mb-3">Incoming Requests</h2>
             {exchanges
-              .filter((ex) => ex.provider_id === user.id)
+              .filter((ex) => ex.status === "accepted")
               .map((ex) => (
                 <div key={ex.id} className="border p-3 mb-2">
                   <p>
@@ -322,7 +358,17 @@ export default function Dashboard() {
                           : "text-red-600"
                       }
                     >
-                      {ex.status}
+                      {ex.status === "completed" &&(
+                        <button
+                        onClick={() => {
+                          setRatingExchange(ex.id);
+                          setShowRating(true);
+                        }}
+                        className="bg-yellow-500 text-white px-2 mt-2"
+                        >
+                          Rate User
+                        </button>
+                      )}
                     </span>
                   </p>
 
@@ -391,19 +437,38 @@ export default function Dashboard() {
             {!selectedExchange ? (
               <>
                 <h2 className="font-semibold mb-3">Select Exchange</h2>
+
+                {exchanges.length === 0 && (
+                  <p className="text-gray-500">No exchanges available</p>
+                )}
+
                 {exchanges.map((ex) => (
                   <button
                     key={ex.id}
                     onClick={() => loadMessages(ex.id)}
-                    className="block border p-2 w-full text-left mb-2"
+                    className="block border p-2 w-full text-left mb-2 hover:bg-gray-100"
                   >
-                    Exchange #{ex.id}
+                    Exchange #{ex.id} — {ex.skill || "Skill"} ({ex.status})
                   </button>
                 ))}
               </>
             ) : (
               <>
-                <div className="h-64 overflow-y-auto border p-3 mb-3">
+                <button
+                  onClick={() => {
+                    setSelectedExchange(null);
+                    setMessages([]);
+                  }}
+                  className="mb-3 text-blue-600"
+                >
+                  ← Back to exchanges
+                </button>
+
+                <div className="h-64 overflow-y-auto border p-3 mb-3 bg-gray-50">
+                  {messages.length === 0 && (
+                    <p className="text-gray-400 text-sm">No messages yet</p>
+                  )}
+
                   {messages.map((m, i) => (
                     <div key={i} className="mb-2">
                       <div
@@ -414,9 +479,9 @@ export default function Dashboard() {
                         }`}
                       >
                         <div className="text-xs opacity-70">
-                          {m.sender_name || "User"}
+                          {m.sender_name || `User ${m.sender_id}`}
                         </div>
-                        <div>{m.message}</div>
+                        <div>{m.message || m.content}</div>
                       </div>
                     </div>
                   ))}
@@ -429,17 +494,59 @@ export default function Dashboard() {
                     value={newMessage}
                     onChange={(e) => setNewMessage(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && sendMessage()}
-                    className="border flex-1 p-2"
+                    className="border flex-1 p-2 rounded"
+                    placeholder="Type a message..."
                   />
                   <button
                     onClick={sendMessage}
-                    className="bg-blue-600 text-white px-4"
+                    className="bg-blue-600 text-white px-4 rounded"
                   >
                     Send
                   </button>
                 </div>
               </>
             )}
+          </div>
+        )}
+
+        {/*RATINGS MODAL*/}
+        {showRating && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+            <div className="bg-white p-6 rounded shadow w-80">
+              <h2 className="text-lg font-semibold mb-3">Rate User</h2>
+
+              <input
+                type="number"
+                min="1"
+                max="5"
+                value={ratingScore}
+                onChange={(e) => setRatingScore(Number(e.target.value))}
+                className="border p-2 w-full mb-3"
+              />
+
+              <textarea
+                placeholder="Comment"
+                value={ratingComment}
+                onChange={(e) => setRatingComment(e.target.value)}
+                className="border p-2 w-full mb-3"
+              />
+
+              <div className="flex justify-end gap-2">
+                <button
+                  onClick={() => setShowRating(false)}
+                  className="bg-gray-400 text-white px-3 py-1"
+                >
+                  Cancel
+                </button>
+
+                <button
+                  onClick={submitRating}
+                  className="bg-green-600 text-white px-3 py-1"
+                >
+                  Submit
+                </button>
+              </div>
+            </div>
           </div>
         )}
 
@@ -465,34 +572,81 @@ export default function Dashboard() {
             {recommendations.length === 0 ? (
               <p>No recommendations yet</p>
             ) : (
-              recommendations.map((s) => (
-                <div key={s.id}>
-                  {s.title} ({s.score})
-                </div>
-              ))
+              <div className="grid gap-3">
+                {recommendations.map((s) => (
+                  <div key={s.id} className="border p-3 rounded">
+                    <h3 className="font-semibold">{s.title}</h3>
+                    <p className="text-sm text-gray-600">
+                      Match Score: {Math.round(s.score*100)}%
+                    </p>
+
+                    <button
+                      onClick={() =>
+                        api.post("/exchanges", {listing_id: s.listing_id})
+                      }
+                      className="bg-blue-600 text-white px-3 py-1 mt-2 rounded"
+                      >
+                        Request Exchange
+                      </button>
+                    </div>
+                ))}
+              </div>
             )}
           </div>
         )}
 
+
         {/* ANALYTICS */}
         {activeTab === "analytics" && (
-          <div>
+          <div className="bg-white p-6 rounded shadow">
             {!analyticsData ? (
               <p>Loading analytics...</p>
             ) : (
               <>
-                <div className="grid grid-cols-3 gap-4 mb-4">
-                  <div>Users: {analyticsData.totals?.users || 0}</div>
-                  <div>Skills: {analyticsData.totals?.skills || 0}</div>
-                  <div>Exchanges: {analyticsData.totals?.exchanges || 0}</div>
+                {/*SUMMARY CARDS*/}
+                <div className="grid grid-cols-3 gap-4 mb-6">
+
+                  <div className="bg-blue-100 p-4 rounded">
+                    <p className="text-sm">Users</p>
+                    <h2 className="text-xl font-bold">
+                      {analyticsData.totals?.users || 0}
+                    </h2>
+                  </div>
+
+                  <div className="bg-green-100 p-4 rounded">
+                    <p className="text-sm">Skills</p>
+                    <h2 className="text-xl font-bold">
+                      {analyticsData.totals?.skills || 0}
+                    </h2>
+                  </div>
+
+                  <div className="bg-green-100 p-4 rounded">
+                    <p className="text-sm">Exchanges</p>
+                    <h2 className="text-xl font-bold">
+                      {analyticsData.totals?.exchanges || 0}
+                    </h2>
+                  </div>
                 </div>
 
+                {/*STATUS CHART*/}
+                <h3 className="font-semibold mb-2">Exchange Status</h3>
                 <Bar data={analyticsData.chart} />
-                <Bar data={analyticsData.monthlyExchanges} />
+
+                {/*MONTHLY CHART*/}
+                <h3 className="font-semibold mt-6 mb-2">Monthly Activity</h3>
+                <Bar
+                  data={{
+                    ...analyticsData.monthlyExchanges,
+                    labels: analyticsData.monthlyExchanges.labels.map((d) =>
+                      new Date(d).toLocaleDateString()
+                    ),
+                  }}
+                />
               </>
             )}
           </div>
         )}
+
       </div>
     </div>
   );

@@ -4,20 +4,20 @@ import authenticate from "../middleware/authenticate.js";
 
 const router = express.Router();
 
+// Get top 5 AI recommendations based on user activity
 router.get("/", authenticate, async (req, res) => {
   try {
     const userId = req.user.id;
 
-    const { rows } = await pool.query(
-      `SELECT s.id, s.title, s.tags, COUNT(ua.id) AS relevance
-       FROM user_activity ua
-       JOIN skills s ON s.id = ua.skill_id
-       WHERE ua.user_id = $1
-       GROUP BY s.id
-       ORDER BY relevance DESC
-       LIMIT 5`,
-      [userId]
-    );
+    const { rows } = await pool.query(`
+      SELECT s.id, s.title, s.tags, COUNT(ua.id) AS relevance
+      FROM user_activity ua
+      JOIN skills s ON s.id = ua.skill_id
+      WHERE ua.user_id=$1
+      GROUP BY s.id
+      ORDER BY relevance DESC
+      LIMIT 5
+    `, [userId]);
 
     res.json(rows);
   } catch (err) {

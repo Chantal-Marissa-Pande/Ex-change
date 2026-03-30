@@ -12,6 +12,7 @@ import aiRoutes from "./routes/ai.routes.js";
 import adminRoutes from "./routes/admin.routes.js";
 import analyticsRoutes from "./routes/analytics.routes.js";
 import requestsRoutes from "./routes/requests.routes.js";
+import recommedationsRouter from "./routes/recommendations.routes.js";
 
 dotenv.config();
 
@@ -32,6 +33,7 @@ app.use("/api/ai", aiRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/analytics", analyticsRoutes);
 app.use("/api/requests", requestsRoutes);
+app.use("/api/ai-recommendations", recommedationsRouter),
 
 /* ---------------- Health Check ---------------- */
 app.get("/", (req, res) => {

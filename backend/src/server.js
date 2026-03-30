@@ -43,34 +43,41 @@ io.on("connection", (socket) => {
   /* MESSAGE FLOW */
   socket.on("send_message", async (data) => {
     try {
-      const { exchangeId, sender_id, content } = data;
+      const { exchangeId, sender_id, message } = data;
 
-      if (!content?.trim()) return;
+      if (!exchangeId || !sender_id || !message) return;
 
-      // Save to DB FIRST
+      // 1. Save message
       const result = await pool.query(
         `INSERT INTO messages (exchange_id, sender_id, content)
          VALUES ($1, $2, $3)
          RETURNING *`,
-        [exchangeId, sender_id, content]
+        [exchangeId, sender_id, message]
       );
 
-      const message = result.rows[0];
-
-      // Get sender name
+      // 2. Get sender name
       const userRes = await pool.query(
         `SELECT name FROM users WHERE id=$1`,
         [sender_id]
       );
 
-      message.sender_name = userRes.rows[0].name;
+      const sender_name = userRes.rows[0]?.name || "User";
 
-      // Emit to room
-      io.to(`exchange_${exchangeId}`).emit("receive_message",{
-        ...message
-      });
+      // 3. Build message payload
+      const fullMessage = {
+        id: result.rows[0].id,
+        exchange_id: exchangeId,
+        sender_id,
+        sender_name,
+        message: result.rows[0].content,
+        created_at: result.rows[0].created_at,
+      };
+
+      // 4. Emit to exchange room
+      io.to(`exchange_${exchangeId}`).emit("receive_message", fullMessage);
+
     } catch (err) {
-      console.error("Socket message error:", err);
+      console.error("Socket send_message error:", err);
     }
   });
 

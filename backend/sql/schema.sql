@@ -53,14 +53,16 @@ CREATE TABLE listings (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- EXCHANGES
+--EXCHANGES
 CREATE TABLE exchanges (
   id SERIAL PRIMARY KEY,
   requester_id INT REFERENCES users(id) ON DELETE CASCADE,
+  provider_id INT REFERENCES users(id) ON DELETE CASCADE,
   listing_id INT REFERENCES listings(id) ON DELETE CASCADE,
-  status VARCHAR(20) DEFAULT 'pending',
+  status VARCHAR(20) CHECK (status IN('pending', 'accepted', 'rejected', 'completed')) DEFAULT 'pending',
   message_count INT DEFAULT 0,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (requester_id, listing_id)
 );
 
 -- MESSAGES
