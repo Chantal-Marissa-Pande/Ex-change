@@ -81,10 +81,15 @@ io.on("connection", (socket) => {
     }
   });
 
+  socket.on("typing", ({exchangeId, userId}) => {
+    socket.to(`exchange_${exchangeId}`).emit("user_typing", userId);
+  });
+
   socket.on("disconnect", () => {
     console.log("User disconnected:", socket.id);
   });
 });
+
 
 /* ---------- Start Server ---------- */
 server.listen(PORT, () => {

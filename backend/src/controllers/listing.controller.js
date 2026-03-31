@@ -9,17 +9,43 @@ exports.getListings = async (req, res) => {
   res.json(listings.rows);
 };
 
+const pool = require("../config/db");
+
 exports.createListing = async (req, res) => {
-  const { title, description, category, type } = req.body;
+  try {
+    const { skill_offered_detail_id, skill_requested_id, description } = req.body;
+    const userId = req.user.id;
 
-  const listing = await pool.query(
-    `INSERT INTO listings (title, description, category, type, owner_id)
-     VALUES ($1,$2,$3,$4,$5)
-     RETURNING *`,
-    [title, description, category, type, req.user.id]
-  );
+    // VALIDATION (ADD THIS BLOCK)
+    const skillDetail = await pool.query(
+      "SELECT user_id FROM skill_detail WHERE id = $1",
+      [skill_offered_detail_id]
+    );
 
-  res.status(201).json(listing.rows[0]);
+    if (!skillDetail.rows.length) {
+      return res.status(404).json({ message: "Skill not found" });
+    }
+
+    if (Number(skillDetail.rows[0].user_id) !== Number(userId)) {
+      return res.status(403).json({
+        message: "You can only list your own skills",
+      });
+    }
+
+    // CREATE LISTING
+    const result = await pool.query(
+      `INSERT INTO listings (user_id, skill_offered_detail_id, skill_requested_id, description)
+       VALUES ($1, $2, $3, $4)
+       RETURNING *`,
+      [userId, skill_offered_detail_id, skill_requested_id, description]
+    );
+
+    res.status(201).json(result.rows[0]);
+
+  } catch (err) {
+    console.error("Create listing error:", err);
+    res.status(500).json({ message: "Failed to create listing" });
+  }
 };
 
 exports.getMyListings = async (req, res) => {

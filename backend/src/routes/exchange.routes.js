@@ -17,7 +17,11 @@ router.post("/", authenticate, async (req, res) => {
 
     // Get listing owner (provider)
     const listingRes = await pool.query(
-      `SELECT user_id FROM listings WHERE id=$1`,
+      `SELECT l.id, l.user_id, s.title AS skill_title
+       FROM listings l
+       JOIN skill_detail sd ON l.skill_offered_detail_id = sd.id
+       JOIN skills s ON sd.skill_id = s.id
+       WHERE l.id = $1`,
       [listing_id]
     );
 
@@ -25,7 +29,8 @@ router.post("/", authenticate, async (req, res) => {
       return res.status(404).json({ message: "Listing not found" });
     }
 
-    const provider_id = listingRes.rows[0].user_id;
+    const listing = listingRes.rows[0];
+    const provider_id = listing.user_id;
 
     // Prevent requesting own listing
     if (provider_id === requester_id) {
@@ -42,6 +47,7 @@ router.post("/", authenticate, async (req, res) => {
       return res.status(400).json({ message: "Request already exists" });
     }
 
+    // Insert new exchange
     const exchangeRes = await pool.query(
       `INSERT INTO exchanges (requester_id, provider_id, listing_id, status)
        VALUES ($1, $2, $3, 'pending')
@@ -60,11 +66,36 @@ router.post("/", authenticate, async (req, res) => {
       );
     }
 
-    // Emit socket events
-    io.to(`user_${provider_id}`).emit("new_request", exchange);
-    io.to(`user_${requester_id}`).emit("request_sent", exchange);
+    // Build full exchange payload to return
+    const fullExchangeRes = await pool.query(
+      `SELECT 
+         e.id,
+         e.status,
+         e.created_at,
+         l.id AS listing_id,
+         s.title AS skill,
+         u1.name AS requester_name,
+         u2.name AS provider_name,
+         e.requester_id,
+         e.provider_id
+       FROM exchanges e
+       JOIN listings l ON e.listing_id = l.id
+       JOIN users u1 ON u1.id = e.requester_id
+       JOIN users u2 ON u2.id = e.provider_id
+       JOIN skill_detail sd ON l.skill_offered_detail_id = sd.id
+       JOIN skills s ON sd.skill_id = s.id
+       WHERE e.id = $1`,
+      [exchange.id]
+    );
 
-    res.status(201).json(exchange);
+    const fullExchange = fullExchangeRes.rows[0];
+
+    // Emit socket events
+    io.to(`user_${provider_id}`).emit("new_request", fullExchange);
+    io.to(`user_${requester_id}`).emit("request_sent", fullExchange);
+
+    res.status(201).json(fullExchange);
+
   } catch (err) {
     console.error("Create exchange error:", err);
     res.status(500).json({ message: "Failed to create exchange" });
@@ -128,18 +159,14 @@ router.patch("/:id/status", authenticate, async (req, res) => {
     // Only provider can accept/reject
     if (status === "accepted" || status === "rejected") {
       if (exchange.provider_id !== userId) {
-        return res.status(403).json({
-          message: "Only provider can accept or reject",
-        });
+        return res.status(403).json({ message: "Only provider can accept or reject" });
       }
     }
 
     // Allow requester to cancel
     if (status === "cancelled") {
       if (exchange.requester_id !== userId) {
-        return res.status(403).json({
-          message: "Only requester can cancel",
-        });
+        return res.status(403).json({ message: "Only requester can cancel" });
       }
     }
 
@@ -153,17 +180,12 @@ router.patch("/:id/status", authenticate, async (req, res) => {
 
     const updatedExchange = updateRes.rows[0];
 
-    // Emit updates
-    io.to(`user_${updatedExchange.provider_id}`).emit(
-      "exchange_updated",
-      updatedExchange
-    );
-    io.to(`user_${updatedExchange.requester_id}`).emit(
-      "exchange_updated",
-      updatedExchange
-    );
+    // Emit real-time update to both users
+    io.to(`user_${updatedExchange.provider_id}`).emit("exchange_updated", updatedExchange);
+    io.to(`user_${updatedExchange.requester_id}`).emit("exchange_updated", updatedExchange);
 
     res.json(updatedExchange);
+
   } catch (err) {
     console.error("Update status error:", err);
     res.status(500).json({ message: "Failed to update status" });
