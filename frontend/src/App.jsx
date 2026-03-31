@@ -7,8 +7,18 @@ import Login from "./pages/Login";
 import SkillDetail from "./pages/SkillDetail";
 import AdminDashboard from "./pages/AdminDashboard";
 import Skills from "./pages/Skills";
+import { useEffect } from "react";
+import socket from "./socket";
 
-export default function App() {
+export default function App({currentUser}) {
+  // Join personal room for real-time updates
+  useEffect(() => {
+    if (currentUser?.id) {
+      socket.emit("join_user", currentUser.id);
+      console.log("Joined personal room for user:", currentUser.id);
+    }
+  }, [currentUser]);
+
   return (
     <BrowserRouter>
       <Routes>

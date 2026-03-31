@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 import api from "../api/axios";
 import toast from "react-hot-toast";
 import Skills from "./Skills";
@@ -21,6 +22,7 @@ ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend)
 
 export default function Dashboard() {
   const navigate = useNavigate();
+  const location = useLocation();
   const messageEndRef = useRef(null);
 
   const [user, setUser] = useState(null);
