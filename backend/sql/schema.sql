@@ -1,15 +1,11 @@
+-- =============================================
 -- CLEAN RESET
-DROP TABLE IF EXISTS connections;
-DROP TABLE IF EXISTS messages;
-DROP TABLE IF EXISTS ratings;
-DROP TABLE IF EXISTS user_activity;
-DROP TABLE IF EXISTS exchanges;
-DROP TABLE IF EXISTS listings;
-DROP TABLE IF EXISTS skill_detail;
-DROP TABLE IF EXISTS skills;
-DROP TABLE IF EXISTS users;
+-- =============================================
+DROP TABLE IF EXISTS connections, messages, ratings, user_activity, exchanges, listings, skill_detail, skills, users;
 
+-- =============================================
 -- USERS
+-- =============================================
 CREATE TABLE users (
   id SERIAL PRIMARY KEY,
   name VARCHAR(100) NOT NULL,
@@ -19,7 +15,9 @@ CREATE TABLE users (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- =============================================
 -- SKILLS
+-- =============================================
 CREATE TABLE skills (
   id SERIAL PRIMARY KEY,
   title VARCHAR(100) NOT NULL UNIQUE,
@@ -28,7 +26,9 @@ CREATE TABLE skills (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- USER SKILLS
+-- =============================================
+-- USER SKILLS (skill_detail)
+-- =============================================
 CREATE TABLE skill_detail (
   id SERIAL PRIMARY KEY,
   user_id INT REFERENCES users(id) ON DELETE CASCADE,
@@ -38,10 +38,12 @@ CREATE TABLE skill_detail (
   description TEXT,
   active BOOLEAN DEFAULT TRUE,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE (user_id, skill_id)
+  UNIQUE(user_id, skill_id)
 );
 
+-- =============================================
 -- LISTINGS
+-- =============================================
 CREATE TABLE listings (
   id SERIAL PRIMARY KEY,
   user_id INT REFERENCES users(id) ON DELETE CASCADE,
@@ -53,19 +55,23 @@ CREATE TABLE listings (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
---EXCHANGES
+-- =============================================
+-- EXCHANGES
+-- =============================================
 CREATE TABLE exchanges (
   id SERIAL PRIMARY KEY,
   requester_id INT REFERENCES users(id) ON DELETE CASCADE,
   provider_id INT REFERENCES users(id) ON DELETE CASCADE,
   listing_id INT REFERENCES listings(id) ON DELETE CASCADE,
-  status VARCHAR(20) CHECK (status IN('pending', 'accepted', 'rejected', 'completed')) DEFAULT 'pending',
+  status VARCHAR(20) CHECK (status IN('pending','accepted','rejected','completed')) DEFAULT 'pending',
   message_count INT DEFAULT 0,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE (requester_id, listing_id)
+  UNIQUE(requester_id, listing_id)
 );
 
+-- =============================================
 -- MESSAGES
+-- =============================================
 CREATE TABLE messages (
   id SERIAL PRIMARY KEY,
   exchange_id INT REFERENCES exchanges(id) ON DELETE CASCADE,
@@ -73,22 +79,25 @@ CREATE TABLE messages (
   content TEXT NOT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
-
 CREATE INDEX idx_messages_exchange ON messages(exchange_id);
 
+-- =============================================
 -- RATINGS
+-- =============================================
 CREATE TABLE ratings (
   id SERIAL PRIMARY KEY,
   exchange_id INT REFERENCES exchanges(id) ON DELETE CASCADE,
   rater_id INT REFERENCES users(id),
   rated_user_id INT REFERENCES users(id),
-  score INT CHECK (score BETWEEN 1 AND 5),
+  score INT CHECK(score BETWEEN 1 AND 5),
   comment TEXT,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   UNIQUE(exchange_id, rater_id)
 );
 
+-- =============================================
 -- USER ACTIVITY
+-- =============================================
 CREATE TABLE user_activity (
   id SERIAL PRIMARY KEY,
   user_id INT REFERENCES users(id) ON DELETE CASCADE,
@@ -98,7 +107,9 @@ CREATE TABLE user_activity (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- =============================================
 -- CONNECTIONS
+-- =============================================
 CREATE TABLE connections (
   id SERIAL PRIMARY KEY,
   user_id INT REFERENCES users(id) ON DELETE CASCADE,

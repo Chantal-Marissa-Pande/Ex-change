@@ -8,11 +8,12 @@ const router = express.Router();
 router.post("/:exchangeId", authenticate, async (req, res) => {
   try {
     const { exchangeId } = req.params;
-    const { score, comment } = req.body;
+    const score = Number(req.body.score);
+    const comment = req.body.comment;
     const userId = req.user.id;
 
     // VALIDATION
-    if (!score || score < 1 || score > 5) {
+    if (isNaN(score) || score < 1 || score > 5) {
       return res.status(400).json({ message: "Score must be between 1 and 5" });
     }
 

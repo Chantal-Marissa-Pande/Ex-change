@@ -73,6 +73,16 @@ export default function Dashboard() {
     socket.emit("join_user", user.id);
   }, [user]);
 
+  /*REDIRECT FROM NEW EXCHANGE*/
+  useEffect(() => {
+    if (location.state?.newExchangeId) {
+      setActiveTab("requests");
+      api.get("/exchanges/my")
+        .then((res) => setExchanges(res.data || []))
+        .catch(() => toast.error("Failed to load exchanges"));
+    }
+  }, [location.state]);
+
   /* LOAD EXCHANGES */
   useEffect(() => {
     if (!["requests", "messages"].includes(activeTab)) return;
@@ -146,6 +156,7 @@ export default function Dashboard() {
   /* LOAD MESSAGES */
   async function loadMessages(id) {
     try {
+      socket.emit("join_exchange", id);
       const res = await api.get(`/messages/${id}`);
 
       const normalized = (res.data || []).map((m) => ({
@@ -175,14 +186,6 @@ export default function Dashboard() {
     sender_id: user.id,
     message: newMessage,
   });
-
-  setMessages((prev) => [
-    ...prev,
-    {
-      sender_id: user.id,
-      message: newMessage,
-    },
-  ]);
 
   setNewMessage("");
 }
@@ -241,6 +244,7 @@ export default function Dashboard() {
 
       toast.success("Rating submitted");
       setShowRating(false);
+      setRatingExchange(null);
       setRatingScore(5);
       setRatingComment("");
 
@@ -338,7 +342,7 @@ export default function Dashboard() {
           <div className="bg-white p-6 rounded shadow">
             <h2 className="font-semibold mb-3">Incoming Requests</h2>
             {exchanges
-              .filter((ex) => ex.status === "accepted")
+              .filter((ex) => ex.provider_id === user.id)
               .map((ex) => (
                 <div key={ex.id} className="border p-3 mb-2">
                   <p>
@@ -347,6 +351,7 @@ export default function Dashboard() {
                   <p>
                     <b>From:</b> {ex.requester_name}
                   </p>
+                  
                   <p>
                     <b>Status:</b>{" "}
                     <span
@@ -360,19 +365,22 @@ export default function Dashboard() {
                           : "text-red-600"
                       }
                     >
-                      {ex.status === "completed" &&(
-                        <button
-                        onClick={() => {
-                          setRatingExchange(ex.id);
-                          setShowRating(true);
-                        }}
-                        className="bg-yellow-500 text-white px-2 mt-2"
-                        >
-                          Rate User
-                        </button>
-                      )}
+                      {ex.status}
                     </span>
                   </p>
+
+                  {/* RATE BUTTON */}
+                  {ex.status === "completed" && (
+                    <button
+                      onClick={() => {
+                        setRatingExchange(ex.id);
+                        setShowRating(true);
+                      }}
+                      className="bg-yellow-500 text-white px-2 mt-2"
+                    >
+                      Rate User
+                    </button>
+                  )}
 
                   {/* ACTION BUTTONS */}
                   {ex.status === "pending" && (

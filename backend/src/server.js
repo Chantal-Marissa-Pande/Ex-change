@@ -45,7 +45,7 @@ io.on("connection", (socket) => {
     try {
       const { exchangeId, sender_id, message } = data;
 
-      if (!exchangeId || !sender_id || !message) return;
+      if (!exchangeId || !sender_id || !message?.trim()) return;
 
       // 1. Save message
       const result = await pool.query(
@@ -54,6 +54,8 @@ io.on("connection", (socket) => {
          RETURNING *`,
         [exchangeId, sender_id, message]
       );
+
+      const saved = result.rows[0];
 
       // 2. Get sender name
       const userRes = await pool.query(
@@ -65,22 +67,33 @@ io.on("connection", (socket) => {
 
       // 3. Build message payload
       const fullMessage = {
-        id: result.rows[0].id,
+        id: saved.id,
         exchange_id: exchangeId,
+        exchangeId: exchangeId,
         sender_id,
         sender_name,
-        message: result.rows[0].content,
-        created_at: result.rows[0].created_at,
+        message: saved.content,
+        content: saved.content,
+        created_at: saved.created_at,
       };
 
       // 4. Emit to exchange room
       io.to(`exchange_${exchangeId}`).emit("receive_message", fullMessage);
+
+      // 5. Update messsage count
+      await pool.query(
+        `UPDATE exchanges
+        SET message_count = message_count + 1
+        WHERE id = $1`,
+        [exchangeId]
+      );
 
     } catch (err) {
       console.error("Socket send_message error:", err);
     }
   });
 
+  // Typing indicator
   socket.on("typing", ({exchangeId, userId}) => {
     socket.to(`exchange_${exchangeId}`).emit("user_typing", userId);
   });
