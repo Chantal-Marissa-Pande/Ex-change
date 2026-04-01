@@ -20,7 +20,7 @@ router.post("/:exchangeId", authenticate, async (req, res) => {
     // CHECK EXCHANGE IS COMPLETED
     const exchangeRes = await pool.query(
       `SELECT e.*, e.provider_id
-       FROM exchanges e
+       FROM public.exchanges e
        WHERE e.id = $1 AND e.status = 'completed'`,
       [exchangeId]
     );

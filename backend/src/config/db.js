@@ -12,5 +12,6 @@ const pool = new Pool({
   password: process.env.DB_PASSWORD || "strongpassword",
   port: process.env.DB_PORT || 5432,
 });
+await pool.query("SET search_path TO public");
 
 export default pool;

@@ -1,22 +1,25 @@
 import { useEffect, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import api from "../api/axios";
 import toast from "react-hot-toast";
 
 export default function SkillDetail({ currentUser }) {
   const { skillId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [skill, setSkill] = useState(null);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
   const [canRate, setCanRate] = useState(false);
-  const [newRating, setNewRating] = useState({ rating: 5, comment: "" });
 
   const fetchSkill = async () => {
     try {
       const res = await api.get(`/skills/${skillId}`);
       const data = res.data;
+
+      // Fallback for listing_id from location state
+      data.listing_id = data.listing_id || location.state?.listing_id || null;
 
       data.tags = Array.isArray(data.tags)
         ? data.tags.map(t => t.replace(/[^\w\s]/g, "").trim())
@@ -32,7 +35,9 @@ export default function SkillDetail({ currentUser }) {
     }
   };
 
-  useEffect(() => { fetchSkill(); }, [skillId]);
+  useEffect(() => {
+    fetchSkill();
+  }, [skillId]);
 
   useEffect(() => {
     async function checkCompletion() {
@@ -43,34 +48,37 @@ export default function SkillDetail({ currentUser }) {
           ex => ex.listing_id === skill.listing_id && ex.status === "completed"
         );
         setCanRate(!!completed);
-      } catch {}
+      } catch (err) {
+        console.error("Check completion error:", err);
+      }
     }
     checkCompletion();
   }, [skill]);
 
   /* -------------------- SEND EXCHANGE REQUEST -------------------- */
   const sendRequest = async () => {
-    if (!skill?.listing_id) { 
-      toast.error("This skill has no active listing"); 
-      return; 
+    console.log("Clicked sendRequest", skill?.listing_id, message);
+
+    if (!skill?.listing_id) {
+      toast.error("This skill has no active listing");
+      return;
     }
 
     try {
-      const res = await api.post("/exchanges", { 
-        listing_id: skill.listing_id, 
+      const res = await api.post("/exchanges", {
+        listing_id: skill.listing_id,
         message,
       });
 
       toast.success("Request sent successfully!");
 
-      // Redirect to dashboard and show new request in exchanges tab
-      navigate("/dashboard", { state: { newExchangeId: res.data.id } });
-
+      // Navigate to dashboard (absolute path) with state
+      navigate("/dashboard", { replace: true, state: { newExchangeId: res.data.id } });
     } catch (err) {
+      console.error("Exchange error:", err);
       toast.error(err.response?.data?.message || "Failed to send request");
     }
   };
-
 
   if (loading) return <div className="p-10 text-center">Loading skill…</div>;
   if (!skill) return <div className="p-10 text-center">Skill not found</div>;
@@ -99,8 +107,9 @@ export default function SkillDetail({ currentUser }) {
         <button
           onClick={sendRequest}
           className="bg-blue-600 text-white px-4 py-2 rounded"
+          disabled={!skill.listing_id}
         >
-          Send Request
+          {skill.listing_id ? "Send Request" : "No Active Listing"}
         </button>
       </div>
 

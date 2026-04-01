@@ -12,7 +12,7 @@ router.post("/", authenticate, async (req, res) => {
     const requester_id = req.user.id;
 
     if (!listing_id) {
-      return res.status(400).json({ message: "Listing ID required" });
+      return res.status(400).json({ message: "Can request a skill without an active listing" });
     }
 
     // Get listing owner (provider)

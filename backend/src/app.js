@@ -33,7 +33,7 @@ app.use("/api/ai", aiRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/analytics", analyticsRoutes);
 app.use("/api/requests", requestsRoutes);
-app.use("/api/ai-recommendations", recommedationsRouter),
+app.use("/api/ai-recommendations", recommedationsRouter);
 
 /* ---------------- Health Check ---------------- */
 app.get("/", (req, res) => {

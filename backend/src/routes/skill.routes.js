@@ -3,11 +3,9 @@ import pool from "../config/db.js";
 
 const router = express.Router();
 
-/*
-=====================================================
-GET MARKETPLACE LISTINGS
-=====================================================
-*/
+/* =====================================================
+GET ALL MARKETPLACE LISTINGS
+===================================================== */
 router.get("/", async (req, res) => {
   try {
     const { rows } = await pool.query(`
@@ -16,10 +14,12 @@ router.get("/", async (req, res) => {
         s.title,
         s.tags,
         u.name AS owner_name,
-        sd.user_id
+        sd.user_id,
+        l.id AS listing_id
       FROM skills s
       JOIN skill_detail sd ON sd.skill_id = s.id
       JOIN users u ON u.id = sd.user_id
+      LEFT JOIN listings l ON l.skill_offered_detail_id = sd.id
       ORDER BY s.id DESC
     `);
 
@@ -30,11 +30,9 @@ router.get("/", async (req, res) => {
   }
 });
 
-/*
-=====================================================
-GET SINGLE LISTING DETAIL
-=====================================================
-*/
+/* =====================================================
+GET SINGLE SKILL DETAIL
+===================================================== */
 router.get("/:id", async (req, res) => {
   try {
     const { id } = req.params;
@@ -54,21 +52,22 @@ router.get("/:id", async (req, res) => {
     `, [id]);
 
     if (!rows.length) {
-      return res.status(404).json({ message: "Listing not found" });
+      return res.status(404).json({ message: "Skill not found" });
     }
 
-    res.json(rows[0]);
+    // Ensure listing_id is always present (null if no listing yet)
+    const skill = { ...rows[0], listing_id: rows[0].listing_id || null };
+
+    res.json(skill);
   } catch (err) {
     console.error("GET /skills/:id error:", err);
-    res.status(500).json({ message: "Error fetching listing" });
+    res.status(500).json({ message: "Error fetching skill" });
   }
 });
 
-/*
-=====================================================
+/* =====================================================
 DELETE LISTING
-=====================================================
-*/
+===================================================== */
 router.delete("/:id", async (req, res) => {
   try {
     const listingId = req.params.id;
