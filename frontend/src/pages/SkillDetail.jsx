@@ -11,7 +11,6 @@ export default function SkillDetail({ currentUser }) {
   const [skill, setSkill] = useState(null);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
-  const [canRate, setCanRate] = useState(false);
 
   const fetchSkill = async () => {
     try {
@@ -47,7 +46,6 @@ export default function SkillDetail({ currentUser }) {
         const completed = res.data.find(
           ex => ex.listing_id === skill.listing_id && ex.status === "completed"
         );
-        setCanRate(!!completed);
       } catch (err) {
         console.error("Check completion error:", err);
       }
@@ -119,7 +117,13 @@ export default function SkillDetail({ currentUser }) {
           <ul className="space-y-2">
             {skill.ratings.map(r => (
               <li key={r.id} className="border p-2 rounded">
-                ⭐ {r.rating} - {r.comment || "No comment"} by {r.rater_name}
+                <div className="text-yellow-500 text-lg">
+                  {"⭐".repeat(r.score)}
+                </div>
+                <p>{r.comment || "No comment"}</p>
+                <small className="text-grey-500">
+                  by {r.rater_name}
+                </small>
               </li>
             ))}
           </ul>

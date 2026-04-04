@@ -1,6 +1,5 @@
 import { useEffect, useState, useRef } from "react";
-import { useNavigate } from "react-router-dom";
-import { useLocation } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import api from "../api/axios";
 import toast from "react-hot-toast";
 import Skills from "./Skills";
@@ -73,7 +72,7 @@ export default function Dashboard() {
     socket.emit("join_user", user.id);
   }, [user]);
 
-  /*REDIRECT FROM NEW EXCHANGE*/
+  /* REDIRECT FROM NEW EXCHANGE */
   useEffect(() => {
     if (location.state?.newExchangeId) {
       setActiveTab("requests");
@@ -95,7 +94,6 @@ export default function Dashboard() {
   /* LOAD RATINGS */
   useEffect(() => {
     if (activeTab !== "ratings") return;
-
 
     api.get("/ratings/received")
       .then((res) => setRatings(res.data || []))
@@ -130,35 +128,35 @@ export default function Dashboard() {
 
   /* SOCKET CHAT */
   useEffect(() => {
-  if (!selectedExchange) return;
+    if (!selectedExchange) return;
 
-  const receive = (msg) => {
-    const normalized = {
-      ...msg,
-      message: msg.message || msg.content,
+    const receive = (msg) => {
+      const normalized = {
+        ...msg,
+        message: msg.message || msg.content,
+      };
+
+      const exchangeId = msg.exchangeId || msg.exchange_id;
+
+      if (Number(exchangeId) !== Number(selectedExchange)) return;
+
+      setMessages((prev) => [...prev, normalized]);
+
+      setTimeout(() => {
+        messageEndRef.current?.scrollIntoView({ behavior: "smooth" });
+      }, 50);
     };
 
-    const exchangeId = msg.exchangeId || msg.exchange_id;
-
-    if (Number(exchangeId) !== Number(selectedExchange)) return;
-
-    setMessages((prev) => [...prev, normalized]);
-
-    setTimeout(() => {
-      messageEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    }, 50);
-  };
-
-  socket.on("receive_message", receive);
-  return () => socket.off("receive_message", receive);
-}, [selectedExchange]);
+    socket.on("receive_message", receive);
+    return () => socket.off("receive_message", receive);
+  }, [selectedExchange]);
 
   /* LOAD MESSAGES */
   async function loadMessages(id) {
     try {
       socket.emit("join_exchange", id);
-      const res = await api.get(`/messages/${id}`);
 
+      const res = await api.get(`/messages/${id}`);
       const normalized = (res.data || []).map((m) => ({
         ...m,
         message: m.message || m.content,
@@ -166,8 +164,6 @@ export default function Dashboard() {
 
       setSelectedExchange(id);
       setMessages(normalized);
-
-      socket.emit("join_exchange", id);
 
       setTimeout(() => {
         messageEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -179,16 +175,17 @@ export default function Dashboard() {
 
   /* SEND MESSAGE */
   function sendMessage() {
-  if (!newMessage.trim() || !selectedExchange) return;
+    if (!newMessage.trim() || !selectedExchange || !user) return;
 
-  socket.emit("send_message", {
-    exchangeId: selectedExchange,
-    sender_id: user.id,
-    message: newMessage,
-  });
+    socket.emit("send_message", {
+      exchangeId: selectedExchange,
+      sender_id: user.id,
+      message: newMessage,
+    });
 
-  setNewMessage("");
-}
+    setNewMessage("");
+  }
+
   /* UPDATE STATUS */
   async function updateStatus(id, status) {
     try {
@@ -234,10 +231,11 @@ export default function Dashboard() {
     navigate("/login");
   }
 
-  /*SUBMIT RATING*/
+  /* SUBMIT RATING */
   async function submitRating() {
     try {
-      await api.post(`/ratings/${ratingExchange}`, {
+      await api.post(`/ratings`, {
+        exchange_id: ratingExchange,
         score: ratingScore,
         comment: ratingComment,
       });
@@ -261,6 +259,7 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen bg-gray-100 p-6">
       <div className="max-w-6xl mx-auto">
+
         {/* HEADER */}
         <div className="flex justify-between mb-6">
           <h1 className="text-3xl font-bold">Welcome {user?.name}</h1>
@@ -307,15 +306,10 @@ export default function Dashboard() {
         {/* PROFILE */}
         {activeTab === "profile" && (
           <div className="bg-white p-6 rounded shadow">
-            <p>
-              <b>Name:</b> {user?.name}
-            </p>
-            <p>
-              <b>Email:</b> {user?.email}
-            </p>
+            <p><b>Name:</b> {user?.name}</p>
+            <p><b>Email:</b> {user?.email}</p>
 
             <h3 className="mt-4 font-semibold">My Skills</h3>
-
             {profileSkills.map((skill) => (
               <div key={skill.id} className="border p-3 mt-2 flex justify-between">
                 <div>
@@ -341,103 +335,71 @@ export default function Dashboard() {
         {activeTab === "requests" && (
           <div className="bg-white p-6 rounded shadow">
             <h2 className="font-semibold mb-3">Incoming Requests</h2>
-            {exchanges
-              .filter((ex) => ex.provider_id === user.id)
-              .map((ex) => (
-                <div key={ex.id} className="border p-3 mb-2">
-                  <p>
-                    <b>Skill:</b> {ex.skill}
-                  </p>
-                  <p>
-                    <b>From:</b> {ex.requester_name}
-                  </p>
-                  
-                  <p>
-                    <b>Status:</b>{" "}
-                    <span
-                      className={
-                        ex.status === "pending"
-                          ? "text-yellow-600"
-                          : ex.status === "accepted"
-                          ? "text-green-600"
-                          : ex.status === "completed"
-                          ? "text-blue-600"
-                          : "text-red-600"
-                      }
-                    >
-                      {ex.status}
-                    </span>
-                  </p>
+            {exchanges.filter((ex) => ex.provider_id === user.id).map((ex) => (
+              <div key={ex.id} className="border p-3 mb-2">
+                <p><b>Skill:</b> {ex.skill}</p>
+                <p><b>From:</b> {ex.requester_name}</p>
+                <p><b>Status:</b> <span className={
+                    ex.status === "pending" ? "text-yellow-600" :
+                    ex.status === "accepted" ? "text-green-600" :
+                    ex.status === "completed" ? "text-blue-600" :
+                    "text-red-600"
+                  }>{ex.status}</span>
+                </p>
 
-                  {/* RATE BUTTON */}
-                  {ex.status === "completed" && (
+                {ex.status === "completed" && !ex.rating_id && (
+                  <button
+                    onClick={() => { setRatingExchange(ex.id); setShowRating(true); }}
+                    className="bg-yellow-500 text-white px-2 mt-2"
+                  >
+                    Rate User
+                  </button>
+                )}
+
+                {ex.status === "pending" && (
+                  <>
                     <button
-                      onClick={() => {
-                        setRatingExchange(ex.id);
-                        setShowRating(true);
-                      }}
-                      className="bg-yellow-500 text-white px-2 mt-2"
+                      onClick={() => updateStatus(ex.id, "accepted")}
+                      className="bg-green-500 text-white px-2 mr-2"
                     >
-                      Rate User
+                      Accept
                     </button>
-                  )}
+                    <button
+                      onClick={() => updateStatus(ex.id, "rejected")}
+                      className="bg-red-500 text-white px-2"
+                    >
+                      Reject
+                    </button>
+                  </>
+                )}
 
-                  {/* ACTION BUTTONS */}
-                  {ex.status === "pending" && (
-                    <>
-                      <button
-                        onClick={() => updateStatus(ex.id, "accepted")}
-                        className="bg-green-500 text-white px-2 mr-2"
-                      >
-                        Accept
-                      </button>
-                      <button
-                        onClick={() => updateStatus(ex.id, "rejected")}
-                        className="bg-red-500 text-white px-2"
-                      >
-                        Reject
-                      </button>
-                    </>
-                  )}
-
-                  {ex.status === "accepted" && (
-                    <>
-                      <button
-                        onClick={() => updateStatus(ex.id, "completed")}
-                        className="bg-blue-500 text-white px-2 mt-2"
-                      >
-                        Mark as completed
-                      </button>
-                      <button
-                        onClick={() => {
-                          setActiveTab("messages");
-                          loadMessages(ex.id);
-                        }}
-                        className="bg-gray-700 text-white px-2 mt-2"
-                      >
-                        Open Chat
-                      </button>
-                    </>
-                  )}
-                </div>
-              ))}
+                {ex.status === "accepted" && (
+                  <>
+                    <button
+                      onClick={() => updateStatus(ex.id, "completed")}
+                      className="bg-blue-500 text-white px-2 mt-2"
+                    >
+                      Mark as completed
+                    </button>
+                    <button
+                      onClick={() => { setActiveTab("messages"); loadMessages(ex.id); }}
+                      className="bg-gray-700 text-white px-2 mt-2"
+                    >
+                      Open Chat
+                    </button>
+                  </>
+                )}
+              </div>
+            ))}
 
             <h2 className="font-semibold mt-6 mb-3">Sent Requests</h2>
-            {exchanges
-              .filter((ex) => ex.requester_id === user.id)
-              .map((ex) => (
-                <div key={ex.id} className="border p-3 mb-2">
-                  <p>
-                    <b>Skill:</b> {ex.skill}
-                  </p>
-                  <p>
-                    <b>To:</b> {ex.provider_name}
-                  </p>
-                  <p>
-                    <b>Status:</b> {ex.status}
-                  </p>
-                </div>
-              ))}
+            {exchanges.filter((ex) => ex.requester_id === user.id).map((ex) => (
+              <div key={ex.id} className="border p-3 mb-2">
+                <p><b>Skill:</b> {ex.skill}</p>
+                <p><b>To:</b> {ex.provider_name}</p>
+                <p><b>Status:</b> {ex.status}</p>
+              </div>
+            ))}
           </div>
         )}
 
@@ -447,11 +409,7 @@ export default function Dashboard() {
             {!selectedExchange ? (
               <>
                 <h2 className="font-semibold mb-3">Select Exchange</h2>
-
-                {exchanges.length === 0 && (
-                  <p className="text-gray-500">No exchanges available</p>
-                )}
-
+                {exchanges.length === 0 && <p className="text-gray-500">No exchanges available</p>}
                 {exchanges.map((ex) => (
                   <button
                     key={ex.id}
@@ -465,32 +423,20 @@ export default function Dashboard() {
             ) : (
               <>
                 <button
-                  onClick={() => {
-                    setSelectedExchange(null);
-                    setMessages([]);
-                  }}
+                  onClick={() => { setSelectedExchange(null); setMessages([]); }}
                   className="mb-3 text-blue-600"
                 >
                   ← Back to exchanges
                 </button>
 
                 <div className="h-64 overflow-y-auto border p-3 mb-3 bg-gray-50">
-                  {messages.length === 0 && (
-                    <p className="text-gray-400 text-sm">No messages yet</p>
-                  )}
-
+                  {messages.length === 0 && <p className="text-gray-400 text-sm">No messages yet</p>}
                   {messages.map((m, i) => (
                     <div key={i} className="mb-2">
-                      <div
-                        className={`px-3 py-2 rounded max-w-xs ${
-                          m.sender_id === user.id
-                            ? "bg-blue-500 text-white ml-auto"
-                            : "bg-gray-200 text-gray-800"
-                        }`}
-                      >
-                        <div className="text-xs opacity-70">
-                          {m.sender_name || `User ${m.sender_id}`}
-                        </div>
+                      <div className={`px-3 py-2 rounded max-w-xs ${
+                          m.sender_id === user.id ? "bg-blue-500 text-white ml-auto" : "bg-gray-200 text-gray-800"
+                        }`}>
+                        <div className="text-xs opacity-70">{m.sender_name || `User ${m.sender_id}`}</div>
                         <div>{m.message || m.content}</div>
                       </div>
                     </div>
@@ -519,20 +465,105 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/*RATINGS MODAL*/}
+        {/* RATINGS */}
+        {activeTab === "ratings" && (
+          <div className="bg-white p-6 rounded shadow">
+            {ratings.length === 0 ? <p>No ratings yet</p> : ratings.map((r) => (
+              <div key={r.id} className="border p-3 mb-2">
+                ⭐ {r.score} by <b>{r.reviewer}</b>
+                <p>{r.comment}</p>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* RECOMMENDATIONS */}
+        {activeTab === "recommendations" && (
+          <div className="bg-white p-6 rounded shadow">
+            {recommendations.length === 0 ? <p>No recommendations yet</p> : (
+              <div className="grid gap-3">
+                {recommendations.map((s) => (
+                  <div key={s.id} className="border p-3 rounded">
+                    <h3 className="font-semibold">{s.title}</h3>
+                    <p className="text-sm text-gray-600">Match Score: {Math.round(s.score*100)}%</p>
+                    <button
+                      onClick={() => {
+                        if (s.listing_id) {
+                          toast.error("This skill has no active listing");
+                          return;
+                        }
+                        api.post("/exchanges", { listing_id: s.listing_id });
+                      }}
+                      className="bg-blue-600 text-white px-3 py-1 mt-2 rounded"
+                    >
+                      Request Exchange
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ANALYTICS */}
+        {activeTab === "analytics" && (
+          <div className="bg-white p-6 rounded shadow">
+            {!analyticsData ? <p>Loading analytics...</p> : (
+              <>
+                {/* SUMMARY CARDS */}
+                <div className="grid grid-cols-3 gap-4 mb-6">
+                  <div className="bg-blue-100 p-4 rounded">
+                    <p className="text-sm">Users</p>
+                    <h2 className="text-xl font-bold">{analyticsData.totals?.users || 0}</h2>
+                  </div>
+                  <div className="bg-green-100 p-4 rounded">
+                    <p className="text-sm">Skills</p>
+                    <h2 className="text-xl font-bold">{analyticsData.totals?.skills || 0}</h2>
+                  </div>
+                  <div className="bg-green-100 p-4 rounded">
+                    <p className="text-sm">Exchanges</p>
+                    <h2 className="text-xl font-bold">{analyticsData.totals?.exchanges || 0}</h2>
+                  </div>
+                </div>
+
+                {/* STATUS CHART */}
+                <h3 className="font-semibold mb-2">Exchange Status</h3>
+                <Bar data={analyticsData.chart} />
+
+                {/* MONTHLY CHART */}
+                <h3 className="font-semibold mt-6 mb-2">Monthly Activity</h3>
+                <Bar
+                  data={{
+                    ...analyticsData.monthlyExchanges,
+                    labels: analyticsData.monthlyExchanges.labels.map((d) =>
+                      new Date(d).toLocaleDateString()
+                    ),
+                  }}
+                />
+              </>
+            )}
+          </div>
+        )}
+
+        {/* RATING MODAL */}
         {showRating && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
             <div className="bg-white p-6 rounded shadow w-80">
               <h2 className="text-lg font-semibold mb-3">Rate User</h2>
 
-              <input
-                type="number"
-                min="1"
-                max="5"
-                value={ratingScore}
-                onChange={(e) => setRatingScore(Number(e.target.value))}
-                className="border p-2 w-full mb-3"
-              />
+              <div className="flex gap-1 mb-3">
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <span
+                    key={star}
+                    className={`cursor-pointer text-2xl ${
+                      star <= ratingScore ? "text-yellow-500" : "text-gray-300"
+                    }`}
+                    onClick={() => setRatingScore(star)}
+                  >
+                    ★
+                  </span>
+                ))}
+              </div>
 
               <textarea
                 placeholder="Comment"
@@ -557,103 +588,6 @@ export default function Dashboard() {
                 </button>
               </div>
             </div>
-          </div>
-        )}
-
-        {/* RATINGS */}
-        {activeTab === "ratings" && (
-          <div className="bg-white p-6 rounded shadow">
-            {ratings.length === 0 ? (
-              <p>No ratings yet</p>
-            ) : (
-              ratings.map((r) => (
-                <div key={r.id} className="border p-3 mb-2">
-                  ⭐ {r.score} by <b>{r.reviewer}</b>
-                  <p>{r.comment}</p>
-                </div>
-              ))
-            )}
-          </div>
-        )}
-
-        {/* RECOMMENDATIONS */}
-        {activeTab === "recommendations" && (
-          <div className="bg-white p-6 rounded shadow">
-            {recommendations.length === 0 ? (
-              <p>No recommendations yet</p>
-            ) : (
-              <div className="grid gap-3">
-                {recommendations.map((s) => (
-                  <div key={s.id} className="border p-3 rounded">
-                    <h3 className="font-semibold">{s.title}</h3>
-                    <p className="text-sm text-gray-600">
-                      Match Score: {Math.round(s.score*100)}%
-                    </p>
-
-                    <button
-                      onClick={() =>
-                        api.post("/exchanges", {listing_id: s.listing_id})
-                      }
-                      className="bg-blue-600 text-white px-3 py-1 mt-2 rounded"
-                      >
-                        Request Exchange
-                      </button>
-                    </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-
-        {/* ANALYTICS */}
-        {activeTab === "analytics" && (
-          <div className="bg-white p-6 rounded shadow">
-            {!analyticsData ? (
-              <p>Loading analytics...</p>
-            ) : (
-              <>
-                {/*SUMMARY CARDS*/}
-                <div className="grid grid-cols-3 gap-4 mb-6">
-
-                  <div className="bg-blue-100 p-4 rounded">
-                    <p className="text-sm">Users</p>
-                    <h2 className="text-xl font-bold">
-                      {analyticsData.totals?.users || 0}
-                    </h2>
-                  </div>
-
-                  <div className="bg-green-100 p-4 rounded">
-                    <p className="text-sm">Skills</p>
-                    <h2 className="text-xl font-bold">
-                      {analyticsData.totals?.skills || 0}
-                    </h2>
-                  </div>
-
-                  <div className="bg-green-100 p-4 rounded">
-                    <p className="text-sm">Exchanges</p>
-                    <h2 className="text-xl font-bold">
-                      {analyticsData.totals?.exchanges || 0}
-                    </h2>
-                  </div>
-                </div>
-
-                {/*STATUS CHART*/}
-                <h3 className="font-semibold mb-2">Exchange Status</h3>
-                <Bar data={analyticsData.chart} />
-
-                {/*MONTHLY CHART*/}
-                <h3 className="font-semibold mt-6 mb-2">Monthly Activity</h3>
-                <Bar
-                  data={{
-                    ...analyticsData.monthlyExchanges,
-                    labels: analyticsData.monthlyExchanges.labels.map((d) =>
-                      new Date(d).toLocaleDateString()
-                    ),
-                  }}
-                />
-              </>
-            )}
           </div>
         )}
 

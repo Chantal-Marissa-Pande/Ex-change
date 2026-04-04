@@ -18,18 +18,18 @@ router.get("/", authenticate, async (req, res) => {
     };
 
     // Status chart
-    const statusRes = await pool.query(`
+    const rows = await pool.query(`
       SELECT status, COUNT(*) AS count
       FROM exchanges
       GROUP BY status
     `);
 
     const chart = {
-      labels: statusRes.rows.map(r => r.status),
+      labels: rows.rows.map(r => r.status),
       datasets: [
         {
-          label: "Exchanges",
-          data: statusRes.rows.map(r => parseInt(r.count)),
+          label: "Exchanges by status",
+          data: rows.rows.map(r => parseInt(r.count)),
           backgroundColor: ["#F59E0B", "#10B981", "#3B82F6", "#EF4444"]
         }
       ]

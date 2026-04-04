@@ -9,7 +9,7 @@ router.get("/ai-recommendations", authenticate, async (req, res) => {
   try {
     const userId = req.user.id;
 
-    // 🔥 GET USER SKILL TAGS (FIXED QUERY)
+    // GET USER SKILL TAGS (FIXED QUERY)
     const userSkills = await pool.query(`
       SELECT s.tags
       FROM listings l
@@ -30,17 +30,20 @@ router.get("/ai-recommendations", authenticate, async (req, res) => {
 
     const tags = Array.from(tagSet);
 
-    // 🔥 GET ALL SKILLS (WITH OWNER)
+    // GET ALL SKILLS (WITH OWNER)
     const skills = await pool.query(`
       SELECT 
         s.id,
         s.title,
         s.tags,
-        u.name AS owner_name
+        u.id AS owner_id,
+        l.id AS listing_id
       FROM skills s
       JOIN skill_detail sd ON sd.skill_id = s.id
       JOIN users u ON u.id = sd.user_id
-    `);
+      LEFT JOIN listings l ON l.skill_offered_detail_id = sd.id
+      WHERE u.id != $1
+    `, [userId]);
 
     const scored = skills.rows.map(skill => {
       let score = 0;

@@ -1,3 +1,5 @@
+console.log("Loading exchange routes...");
+
 import express from "express";
 import pool from "../config/db.js";
 import authenticate from "../middleware/authenticate.js";
@@ -7,6 +9,8 @@ const router = express.Router();
 
 /* ================= CREATE EXCHANGE ================= */
 router.post("/", authenticate, async (req, res) => {
+  console.log("POST /api/exchanges hit");
+  
   try {
     const { listing_id, message } = req.body;
     const requester_id = req.user.id;
@@ -118,13 +122,20 @@ router.get("/my", authenticate, async (req, res) => {
         u1.name AS requester_name,
         u2.name AS provider_name,
         e.requester_id,
-        e.provider_id
+        e.provider_id,
+        r.id AS rating_id
+
       FROM exchanges e
       JOIN listings l ON e.listing_id = l.id
       JOIN users u1 ON u1.id = e.requester_id
       JOIN users u2 ON u2.id = e.provider_id
       JOIN skill_detail sd ON l.skill_offered_detail_id = sd.id
       JOIN skills s ON sd.skill_id = s.id
+
+      LEFT JOIN ratings r
+        ON r.exchange_id = e.id
+        AND r.rater_id = $1
+        
       WHERE e.requester_id = $1 OR e.provider_id = $1
       ORDER BY e.created_at DESC
       `,
