@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import axios from "axios";
 import {
   PieChart,
@@ -6,6 +6,11 @@ import {
   Tooltip,
   ResponsiveContainer,
   Cell,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
 } from "recharts";
 
 const AdminDashboard = () => {
@@ -20,7 +25,6 @@ const AdminDashboard = () => {
 
   useEffect(() => {
     fetchData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchData = async () => {
@@ -36,17 +40,18 @@ const AdminDashboard = () => {
         ]);
 
       setStats(statsRes.data || {});
-      setUsers(Array.isArray(usersRes.data) ? usersRes.data : []);
-      setExchanges(Array.isArray(exchangesRes.data) ? exchangesRes.data : []);
-      setAnalytics(Array.isArray(analyticsRes.data) ? analyticsRes.data : []);
+      setUsers(usersRes.data || []);
+      setExchanges(exchangesRes.data || []);
+
+      // ✅ normalize analytics
+      const normalized = (analyticsRes.data || []).map((a) => ({
+        status: a.status,
+        count: Number(a.count),
+      }));
+
+      setAnalytics(normalized);
     } catch (err) {
-      console.error(
-        "Admin load error:",
-        err.response?.data || err.message
-      );
-      setUsers([]);
-      setExchanges([]);
-      setAnalytics([]);
+      console.error("Admin load error:", err);
     } finally {
       setLoading(false);
     }
@@ -62,7 +67,7 @@ const AdminDashboard = () => {
 
       setUsers((prev) => prev.filter((u) => u.id !== id));
     } catch (err) {
-      console.error("Delete user error:", err.response?.data || err.message);
+      console.error("Delete error:", err);
     }
   };
 
@@ -77,10 +82,17 @@ const AdminDashboard = () => {
     accepted: "#3b82f6",
   };
 
+  const completionRate =
+    stats.total_exchanges > 0
+      ? Math.round(
+          (stats.completed_exchanges / stats.total_exchanges) * 100
+        )
+      : 0;
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-900 text-white">
-        Loading Dashboard...
+        Loading Admin Dashboard...
       </div>
     );
   }
@@ -90,23 +102,23 @@ const AdminDashboard = () => {
       <div className="max-w-7xl mx-auto">
         <h1 className="text-3xl font-bold mb-10">Admin Dashboard</h1>
 
-        {/* Stats */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+        {/* ================= STATS ================= */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6 mb-12">
           <StatCard title="Users" value={stats.total_users} />
           <StatCard title="Listings" value={stats.total_listings} />
           <StatCard title="Exchanges" value={stats.total_exchanges} />
-          <StatCard title="Completed" value={stats.completed_exchanges || 0} />
+          <StatCard title="Completed" value={stats.completed_exchanges} />
+          <StatCard title="Completion %" value={`${completionRate}%`} />
         </div>
 
-        {/* Analytics */}
-        <div className="bg-slate-800/50 backdrop-blur-md rounded-xl p-6 mb-12 shadow-lg">
-          <h2 className="text-xl font-semibold mb-6">
-            Exchange Status Overview
-          </h2>
+        {/* ================= CHARTS ================= */}
+        <div className="grid lg:grid-cols-2 gap-8 mb-12">
+          {/* Pie Chart */}
+          <div className="bg-slate-800/50 rounded-xl p-6 shadow-lg">
+            <h2 className="text-xl font-semibold mb-4">
+              Exchange Status Distribution
+            </h2>
 
-          {analytics.length === 0 ? (
-            <p className="text-slate-400">No analytics data available</p>
-          ) : (
             <div className="h-80">
               <ResponsiveContainer>
                 <PieChart>
@@ -128,13 +140,33 @@ const AdminDashboard = () => {
                 </PieChart>
               </ResponsiveContainer>
             </div>
-          )}
+          </div>
+
+          {/* Bar Chart */}
+          <div className="bg-slate-800/50 rounded-xl p-6 shadow-lg">
+            <h2 className="text-xl font-semibold mb-4">
+              Exchange Status Counts
+            </h2>
+
+            <div className="h-80">
+              <ResponsiveContainer>
+                <BarChart data={analytics}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="status" />
+                  <YAxis />
+                  <Tooltip />
+                  <Bar dataKey="count" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
         </div>
 
-        {/* Users */}
+        {/* ================= USERS ================= */}
         <div className="bg-slate-800/50 rounded-xl p-6 shadow-lg mb-12">
           <div className="flex justify-between mb-4">
             <h2 className="text-xl font-semibold">Users</h2>
+
             <input
               placeholder="Search users..."
               className="px-4 py-2 rounded bg-slate-700 text-white"
@@ -153,6 +185,7 @@ const AdminDashboard = () => {
                 <th></th>
               </tr>
             </thead>
+
             <tbody>
               {filteredUsers.length === 0 ? (
                 <tr>
@@ -184,9 +217,9 @@ const AdminDashboard = () => {
           </table>
         </div>
 
-        {/* Exchanges */}
+        {/* ================= EXCHANGES ================= */}
         <div className="bg-slate-800/50 rounded-xl p-6 shadow-lg">
-          <h2 className="text-xl font-semibold mb-4">Exchanges</h2>
+          <h2 className="text-xl font-semibold mb-4">Recent Exchanges</h2>
 
           <table className="w-full text-left">
             <thead className="text-slate-400 border-b border-slate-600">
@@ -197,6 +230,7 @@ const AdminDashboard = () => {
                 <th>Date</th>
               </tr>
             </thead>
+
             <tbody>
               {exchanges.length === 0 ? (
                 <tr>
@@ -209,7 +243,14 @@ const AdminDashboard = () => {
                   <tr key={ex.id} className="border-b border-slate-700">
                     <td className="py-3">{ex.id}</td>
                     <td>{ex.requester_name}</td>
-                    <td>{ex.status}</td>
+                    <td
+                      className="capitalize"
+                      style={{
+                        color: statusColors[ex.status] || "#fff",
+                      }}
+                    >
+                      {ex.status}
+                    </td>
                     <td>
                       {new Date(ex.created_at).toLocaleDateString()}
                     </td>

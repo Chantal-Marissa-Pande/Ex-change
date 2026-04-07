@@ -15,7 +15,9 @@ router.get(
   async (req, res) => {
     try {
       const result = await pool.query(
-        "SELECT id, name, email, role, created_at FROM users ORDER BY id ASC"
+        `SELECT id, name, email, role, created_at
+         FROM users
+         ORDER BY id ASC`
       );
       return res.json(result.rows);
     } catch (err) {
@@ -34,14 +36,20 @@ router.get(
   adminMiddleware,
   async (req, res) => {
     try {
-      const users = await pool.query("SELECT COUNT(*) FROM users");
-      const exchanges = await pool.query("SELECT COUNT(*) FROM exchanges");
-      const listings = await pool.query("SELECT COUNT(*) FROM skill_detail");
+      const [users, exchanges, listings, completed] = await Promise.all([
+        pool.query("SELECT COUNT(*) FROM users"),
+        pool.query("SELECT COUNT(*) FROM exchanges"),
+        pool.query("SELECT COUNT(*) FROM listings"), // ✅ FIXED
+        pool.query(
+          `SELECT COUNT(*) FROM exchanges WHERE status = 'completed'`
+        ), // ✅ NEW
+      ]);
 
       return res.json({
         total_users: Number(users.rows[0].count),
         total_exchanges: Number(exchanges.rows[0].count),
         total_listings: Number(listings.rows[0].count),
+        completed_exchanges: Number(completed.rows[0].count), // ✅ FIXED
       });
     } catch (err) {
       console.error("ADMIN STATS ERROR:", err);
@@ -60,10 +68,14 @@ router.get(
   async (req, res) => {
     try {
       const result = await pool.query(
-        `SELECT e.id, u.name AS requester_name, e.status, e.created_at
+        `SELECT 
+            e.id,
+            u.name AS requester_name,
+            e.status,
+            e.created_at
          FROM exchanges e
          JOIN users u ON e.requester_id = u.id
-         ORDER BY e.id ASC`
+         ORDER BY e.created_at DESC`
       );
       return res.json(result.rows);
     } catch (err) {
@@ -83,10 +95,12 @@ router.get(
   async (req, res) => {
     try {
       const result = await pool.query(
-        `SELECT status, COUNT(*) AS count
+        `SELECT status, COUNT(*)::int AS count
          FROM exchanges
-         GROUP BY status`
+         GROUP BY status
+         ORDER BY count DESC`
       );
+
       return res.json(result.rows);
     } catch (err) {
       console.error("ADMIN EXCHANGE STATUS ERROR:", err);

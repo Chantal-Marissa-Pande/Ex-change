@@ -6,19 +6,6 @@ import Skills from "./Skills";
 import AddSkillForm from "./AddSkillForm";
 import socket from "../socket";
 
-import { Bar } from "react-chartjs-2";
-import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  BarElement,
-  Title,
-  Tooltip,
-  Legend,
-} from "chart.js";
-
-ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
-
 export default function Dashboard() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -31,7 +18,6 @@ export default function Dashboard() {
   const [messages, setMessages] = useState([]);
   const [ratings, setRatings] = useState([]);
   const [recommendations, setRecommendations] = useState([]);
-  const [analyticsData, setAnalyticsData] = useState(null);
 
   const [selectedExchange, setSelectedExchange] = useState(null);
   const [newMessage, setNewMessage] = useState("");
@@ -115,15 +101,6 @@ export default function Dashboard() {
     }
 
     loadRecommendations();
-  }, [activeTab]);
-
-  /* LOAD ANALYTICS */
-  useEffect(() => {
-    if (activeTab !== "analytics") return;
-
-    api.get("/analytics")
-      .then((res) => setAnalyticsData(res.data))
-      .catch(() => toast.error("Failed to load analytics"));
   }, [activeTab]);
 
   /* SOCKET CHAT */
@@ -234,8 +211,7 @@ export default function Dashboard() {
   /* SUBMIT RATING */
   async function submitRating() {
     try {
-      await api.post(`/ratings`, {
-        exchange_id: ratingExchange,
+      await api.post(`/ratings/${ratingExchange}`, {
         score: ratingScore,
         comment: ratingComment,
       });
@@ -255,7 +231,6 @@ export default function Dashboard() {
   }
 
   if (loading) return <div className="p-10 text-center">Loading dashboard...</div>;
-  
 
   return (
     <div className="min-h-screen bg-gray-100 p-6">
@@ -281,7 +256,6 @@ export default function Dashboard() {
             "messages",
             "ratings",
             "recommendations",
-            "analytics",
           ].map((tab) => (
             <button
               key={tab}
@@ -524,79 +498,6 @@ export default function Dashboard() {
                   </div>
                 ))}
               </div>
-            )}
-          </div>
-        )}
-
-        {/* ANALYTICS */}
-        {activeTab === "analytics" && (
-          <div className="bg-white p-6 rounded shadow">
-            {!analyticsData ? <p>Loading analytics...</p> : (
-              <>
-                {/* SUMMARY CARDS */}
-                <div className="grid grid-cols-3 gap-4 mb-6">
-                  <div className="bg-blue-100 p-4 rounded">
-                    <p className="text-sm">Users</p>
-                    <h2 className="text-xl font-bold">{analyticsData.totals?.users || 0}</h2>
-                  </div>
-                  <div className="bg-green-100 p-4 rounded">
-                    <p className="text-sm">Skills</p>
-                    <h2 className="text-xl font-bold">{analyticsData.totals?.skills || 0}</h2>
-                  </div>
-                  <div className="bg-green-100 p-4 rounded">
-                    <p className="text-sm">Exchanges</p>
-                    <h2 className="text-xl font-bold">{analyticsData.totals?.exchanges || 0}</h2>
-                  </div>
-                </div>
-
-                {/* STATUS CHART */}
-                <h3 className="font-semibold mb-2">Exchange Status</h3>
-
-                {analyticsData?.chart?.labels?.length > 0 ? (
-                <Bar
-                  data={{
-                    labels: analyticsData.chart.labels.map(l => String(l)),
-
-                    datasets: [
-                      {
-                        label: "Exchanges by status",
-                        data: analyticsData.chart.datasets?.[0]?.data.map(n => Number(n) || 0),
-
-                        backgroundColor: "rgba(54, 162, 235, 0.6)",
-                        borderColor: "rgba(54, 162, 235, 1)",
-                        borderWidth: 1,
-                      },
-                    ],
-                  }}
-                />
-              ) : (
-                <p>No chart data</p>
-              )}
-
-                {/* MONTHLY CHART */}
-                <h3 className="font-semibold mt-6 mb-2">Monthly Activity</h3>
-
-                {analyticsData?.monthlyExchanges?.labels?.length > 0 ? (
-                <Bar
-                  data={{
-                    labels: analyticsData.monthlyExchanges.labels.map(l => String(l)),
-
-                    datasets: [
-                      {
-                        label: "Monthly Exchanges",
-                        data: analyticsData.monthlyExchanges.datasets?.[0]?.data.map(n => Number(n) || 0),
-
-                        backgroundColor: "rgba(75, 192, 192, 0.6)",
-                        borderColor: "rgba(75, 192, 192, 1)",
-                        borderWidth: 1,
-                      },
-                    ],
-                  }}
-                />
-              ) : (
-                <p>No monthly data</p>
-              )}
-              </>
             )}
           </div>
         )}
