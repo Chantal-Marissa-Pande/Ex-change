@@ -25,26 +25,27 @@ router.get("/", authenticate, async (req, res) => {
     `);
 
     const chart = {
-      labels: rows.rows.map(r => r.status),
+      labels: rows.rows.map(r => String (r.status)),
       datasets: [
         {
           label: "Exchanges by status",
           data: rows.rows.map(r => parseInt(r.count)),
-          backgroundColor: ["#F59E0B", "#10B981", "#3B82F6", "#EF4444"]
+          backgroundColor: "#3B82F6",
         }
       ]
     };
 
     // Monthly chart
     const monthlyRes = await pool.query(`
-      SELECT DATE_TRUNC('month', created_at) AS month, COUNT(*) AS count
+      SELECT TO_CHAR(DATE_TRUNC('month', created_at), 'YYYY-MM') AS month,
+            COUNT(*) AS count
       FROM exchanges
       GROUP BY month
       ORDER BY month
     `);
 
     const monthlyExchanges = {
-      labels: monthlyRes.rows.map(r => r.month),
+      labels: monthlyRes.rows.map(r => String(r.month)),
       datasets: [
         {
           label: "Monthly Exchanges",

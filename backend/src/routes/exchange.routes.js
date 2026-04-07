@@ -10,18 +10,18 @@ const router = express.Router();
 /* ================= CREATE EXCHANGE ================= */
 router.post("/", authenticate, async (req, res) => {
   console.log("POST /api/exchanges hit");
-  
+
   try {
     const { listing_id, message } = req.body;
     const requester_id = req.user.id;
 
-    if (!listing_id) {
-      return res.status(400).json({ message: "Can request a skill without an active listing" });
+    if (!listing_id || isNaN(Number(listing_id))) {
+      return res.status(400).json({ message: "Invalid listing ID" });
     }
 
     // Get listing owner (provider)
     const listingRes = await pool.query(
-      `SELECT l.id, l.user_id, s.title AS skill_title
+      `SELECT l.id, l.user_id, l.status, s.title AS skill_title
        FROM listings l
        JOIN skill_detail sd ON l.skill_offered_detail_id = sd.id
        JOIN skills s ON sd.skill_id = s.id
@@ -35,6 +35,11 @@ router.post("/", authenticate, async (req, res) => {
 
     const listing = listingRes.rows[0];
     const provider_id = listing.user_id;
+
+    // Only allow active listings
+    if (listing.status !== 'active') {
+      return res.status(400).json({ message: "Listing is not active" });
+    }
 
     // Prevent requesting own listing
     if (provider_id === requester_id) {
@@ -98,6 +103,7 @@ router.post("/", authenticate, async (req, res) => {
     io.to(`user_${provider_id}`).emit("new_request", fullExchange);
     io.to(`user_${requester_id}`).emit("request_sent", fullExchange);
 
+    console.log("Exchange created:", fullExchange);
     res.status(201).json(fullExchange);
 
   } catch (err) {
@@ -124,18 +130,15 @@ router.get("/my", authenticate, async (req, res) => {
         e.requester_id,
         e.provider_id,
         r.id AS rating_id
-
       FROM exchanges e
       JOIN listings l ON e.listing_id = l.id
       JOIN users u1 ON u1.id = e.requester_id
       JOIN users u2 ON u2.id = e.provider_id
       JOIN skill_detail sd ON l.skill_offered_detail_id = sd.id
       JOIN skills s ON sd.skill_id = s.id
-
       LEFT JOIN ratings r
         ON r.exchange_id = e.id
         AND r.rater_id = $1
-        
       WHERE e.requester_id = $1 OR e.provider_id = $1
       ORDER BY e.created_at DESC
       `,
@@ -195,6 +198,7 @@ router.patch("/:id/status", authenticate, async (req, res) => {
     io.to(`user_${updatedExchange.provider_id}`).emit("exchange_updated", updatedExchange);
     io.to(`user_${updatedExchange.requester_id}`).emit("exchange_updated", updatedExchange);
 
+    console.log("Exchange status updated:", updatedExchange);
     res.json(updatedExchange);
 
   } catch (err) {

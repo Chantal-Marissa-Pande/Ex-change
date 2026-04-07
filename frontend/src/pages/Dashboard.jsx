@@ -106,7 +106,7 @@ export default function Dashboard() {
 
     async function loadRecommendations() {
       try {
-        const res = await api.get("/ai-recommendations");
+        const res = await api.get("/ai");
         setRecommendations(res.data || []);
       } catch {
         toast.error("No AI recommendations");
@@ -255,6 +255,7 @@ export default function Dashboard() {
   }
 
   if (loading) return <div className="p-10 text-center">Loading dashboard...</div>;
+  
 
   return (
     <div className="min-h-screen bg-gray-100 p-6">
@@ -480,19 +481,41 @@ export default function Dashboard() {
         {/* RECOMMENDATIONS */}
         {activeTab === "recommendations" && (
           <div className="bg-white p-6 rounded shadow">
-            {recommendations.length === 0 ? <p>No recommendations yet</p> : (
+            {recommendations.length === 0 ?
+              <p>No recommendations yet</p> : (
               <div className="grid gap-3">
                 {recommendations.map((s) => (
                   <div key={s.id} className="border p-3 rounded">
                     <h3 className="font-semibold">{s.title}</h3>
-                    <p className="text-sm text-gray-600">Match Score: {Math.round(s.score*100)}%</p>
+
+                    <p className="text-sm text-gray-600">
+                      Match Score: {Math.round((s.score || 0) * 100)}%
+                    </p>
+
                     <button
                       onClick={() => {
-                        if (s.listing_id) {
+                        console.log("DEBUG listing_id:", s.listing_id);
+
+                        if (!s.listing_id || isNaN(Number(s.listing_id))) {
                           toast.error("This skill has no active listing");
                           return;
                         }
-                        api.post("/exchanges", { listing_id: s.listing_id });
+
+                        if (s.owner_id === user.id) {
+                          toast.error("You cannot request an exchange for your own skill");
+                          return;
+                        }
+
+                        api.post("/exchanges", {
+                          listing_id: Number(s.listing_id),
+                        })
+                        .then(() => {
+                          toast.success("Exchange requested");
+                        })
+                        .catch((err) => {
+                          console.log("ERROR:", err.response?.data);
+                          toast.error(err.response?.data?.message || "Failed to request exchange");
+                        });
                       }}
                       className="bg-blue-600 text-white px-3 py-1 mt-2 rounded"
                     >
@@ -528,18 +551,51 @@ export default function Dashboard() {
 
                 {/* STATUS CHART */}
                 <h3 className="font-semibold mb-2">Exchange Status</h3>
-                <Bar data={analyticsData.chart} />
+
+                {analyticsData?.chart?.labels?.length > 0 ? (
+                <Bar
+                  data={{
+                    labels: analyticsData.chart.labels.map(l => String(l)),
+
+                    datasets: [
+                      {
+                        label: "Exchanges by status",
+                        data: analyticsData.chart.datasets?.[0]?.data.map(n => Number(n) || 0),
+
+                        backgroundColor: "rgba(54, 162, 235, 0.6)",
+                        borderColor: "rgba(54, 162, 235, 1)",
+                        borderWidth: 1,
+                      },
+                    ],
+                  }}
+                />
+              ) : (
+                <p>No chart data</p>
+              )}
 
                 {/* MONTHLY CHART */}
                 <h3 className="font-semibold mt-6 mb-2">Monthly Activity</h3>
+
+                {analyticsData?.monthlyExchanges?.labels?.length > 0 ? (
                 <Bar
                   data={{
-                    ...analyticsData.monthlyExchanges,
-                    labels: analyticsData.monthlyExchanges.labels.map((d) =>
-                      new Date(d).toLocaleDateString()
-                    ),
+                    labels: analyticsData.monthlyExchanges.labels.map(l => String(l)),
+
+                    datasets: [
+                      {
+                        label: "Monthly Exchanges",
+                        data: analyticsData.monthlyExchanges.datasets?.[0]?.data.map(n => Number(n) || 0),
+
+                        backgroundColor: "rgba(75, 192, 192, 0.6)",
+                        borderColor: "rgba(75, 192, 192, 1)",
+                        borderWidth: 1,
+                      },
+                    ],
                   }}
                 />
+              ) : (
+                <p>No monthly data</p>
+              )}
               </>
             )}
           </div>
