@@ -47,21 +47,31 @@ router.post("/skills", authenticate, async (req, res) => {
     const skillResult = await pool.query(
       `INSERT INTO skills (title, category, tags)
        VALUES ($1, $2, $3)
-       ON CONFLICT (title) DO UPDATE SET category = EXCLUDED.category
+       ON CONFLICT (title)
+       DO UPDATE SET category = EXCLUDED.category
        RETURNING *`,
       [title, category, (Array.isArray(tags) ? tags.join(",") : tags) || ""]
     );
     const skill = skillResult.rows[0];
 
     const detailResult = await pool.query(
-      `INSERT INTO skill_detail (user_id, skill_id, level, years_experience, description)
-       VALUES ($1, $2, $3, $4, $5)
+      `INSERT INTO skill_detail
+      (user_id, skill_id, level, years_experience, description, active)
+       VALUES ($1, $2, $3, $4, $5, TRUE)
        ON CONFLICT (user_id, skill_id) 
-       DO UPDATE SET level = EXCLUDED.level,
-                     years_experience = EXCLUDED.years_experience,
-                     description = EXCLUDED.description
+       DO UPDATE SET
+        level = EXCLUDED.level,
+        years_experience = EXCLUDED.years_experience,
+        description = EXCLUDED.description,
+        active = TRUE
        RETURNING *`,
-      [req.user.id, skill.id, level, years_experience || 0, description || ""]
+      [
+        req.user.id,
+        skill.id,
+        level,
+        years_experience || 0,
+        description || "",
+      ]
     );
 
     const combinedSkill = {
@@ -73,6 +83,7 @@ router.post("/skills", authenticate, async (req, res) => {
       years_experience: detailResult.rows[0].years_experience,
       description: detailResult.rows[0].description,
       tags: skill.tags ? skill.tags.split(",").map((t) => t.trim()) : [],
+      active: true,
     };
 
     res.status(201).json(combinedSkill);

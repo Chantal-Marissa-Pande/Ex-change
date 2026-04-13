@@ -20,6 +20,7 @@ router.get("/", async (req, res) => {
       JOIN skill_detail sd ON sd.skill_id = s.id
       JOIN users u ON u.id = sd.user_id
       LEFT JOIN listings l ON l.skill_offered_detail_id = sd.id
+      WHERE sd.active = TRUE
       ORDER BY s.id DESC
     `);
 
@@ -49,6 +50,7 @@ router.get("/:id", async (req, res) => {
       JOIN users u ON u.id = sd.user_id
       LEFT JOIN listings l ON l.skill_offered_detail_id = sd.id
       WHERE s.id = $1
+      AND sd.active = TRUE
     `, [id]);
 
     if (!rows.length) {
