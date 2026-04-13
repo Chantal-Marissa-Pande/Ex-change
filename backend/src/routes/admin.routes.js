@@ -9,16 +9,100 @@ const router = express.Router();
 router.get("/users", authMiddleware, adminMiddleware, async (req, res) => {
   try {
     const result = await pool.query(`
-      SELECT id, name, email, role, created_at
+      SELECT id, name, email, role, status, created_at
       FROM users
       ORDER BY created_at DESC
     `);
+
     res.json(result.rows);
   } catch (err) {
     console.error("ADMIN USERS ERROR:", err);
     res.status(500).json({ message: "Server error" });
   }
 });
+
+/* ================= CREATE USER ================= */
+router.post("/users", authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { name, email, password, role } = req.body;
+
+    if (!name || !email || !password) {
+      return res.status(400).json({ message: "Missing fields" });
+    }
+
+    const bcrypt = await import("bcryptjs");
+
+    const existing = await pool.query(
+      "SELECT id FROM users WHERE email = $1",
+      [email]
+    );
+
+    if (existing.rows.length > 0) {
+      return res.status(409).json({ message: "User already exists" });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const result = await pool.query(
+      `
+      INSERT INTO users (name, email, password_hash, role, status)
+      VALUES ($1, $2, $3, $4, 'active')
+      RETURNING id, name, email, role, status
+      `,
+      [name, email, hashedPassword, role || "user"]
+    );
+
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    console.error("CREATE USER ERROR:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+/* ================= USER STATUS (ACTIVATE / DEACTIVATE) ================= */
+router.patch(
+  "/users/:id/status",
+  authMiddleware,
+  adminMiddleware,
+  async (req, res) => {
+    try {
+      const { status } = req.body;
+
+      if (!["active", "suspended"].includes(status)) {
+        return res.status(400).json({ message: "Invalid status" });
+      }
+
+      await pool.query(
+        `UPDATE users SET status = $1 WHERE id = $2`,
+        [status, req.params.id]
+      );
+
+      res.json({ message: "User status updated" });
+    } catch (err) {
+      console.error("STATUS UPDATE ERROR:", err);
+      res.status(500).json({ message: "Server error" });
+    }
+  }
+);
+
+/* ================= DELETE USER ================= */
+router.delete(
+  "/users/:id",
+  authMiddleware,
+  adminMiddleware,
+  async (req, res) => {
+    try {
+      await pool.query(`DELETE FROM users WHERE id = $1`, [
+        req.params.id,
+      ]);
+
+      res.json({ message: "User deleted" });
+    } catch (err) {
+      console.error("DELETE USER ERROR:", err);
+      res.status(500).json({ message: "Server error" });
+    }
+  }
+);
 
 /* ================= STATS ================= */
 router.get("/stats", authMiddleware, adminMiddleware, async (req, res) => {
@@ -27,7 +111,9 @@ router.get("/stats", authMiddleware, adminMiddleware, async (req, res) => {
       pool.query("SELECT COUNT(*) FROM users"),
       pool.query("SELECT COUNT(*) FROM exchanges"),
       pool.query("SELECT COUNT(*) FROM listings"),
-      pool.query(`SELECT COUNT(*) FROM exchanges WHERE status = 'completed'`),
+      pool.query(
+        `SELECT COUNT(*) FROM exchanges WHERE status = 'completed'`
+      ),
     ]);
 
     res.json({
@@ -63,7 +149,7 @@ router.get("/exchanges", authMiddleware, adminMiddleware, async (req, res) => {
   }
 });
 
-/* ================= STATUS ANALYTICS ================= */
+/* ================= ANALYTICS ================= */
 router.get(
   "/analytics/exchange-status",
   authMiddleware,
