@@ -39,26 +39,27 @@ const AdminDashboard = () => {
   const token = localStorage.getItem("token");
   const headers = { Authorization: `Bearer ${token}` };
 
+  /* ================= COLORS ================= */
+  const COLORS = {
+    completed: "#22c55e",
+    pending: "#f59e0b",
+    rejected: "#ef4444",
+    accepted: "#3b82f6",
+  };
+
   /* ================= FETCH DATA ================= */
   const fetchData = useCallback(async () => {
     try {
       setError(null);
 
-      const [
-        statsRes,
-        analyticsRes,
-        topUsersRes,
-        topSkillsRes,
-        usersRes,
-      ] = await Promise.all([
-        axios.get("/api/admin/stats", { headers }),
-        axios.get(`/api/admin/analytics/exchange-status?range=${range}`, {
-          headers,
-        }),
-        axios.get("/api/admin/analytics/top-users", { headers }),
-        axios.get("/api/admin/analytics/top-skills", { headers }),
-        axios.get("/api/admin/users", { headers }),
-      ]);
+      const [statsRes, analyticsRes, topUsersRes, topSkillsRes, usersRes] =
+        await Promise.all([
+          axios.get("/api/admin/stats", { headers }),
+          axios.get(`/api/admin/analytics/exchange-status?range=${range}`, { headers }),
+          axios.get("/api/admin/analytics/top-users", { headers }),
+          axios.get("/api/admin/analytics/top-skills", { headers }),
+          axios.get("/api/admin/users", { headers }),
+        ]);
 
       setStats(statsRes.data || {});
       setAnalytics(analyticsRes.data || []);
@@ -78,9 +79,7 @@ const AdminDashboard = () => {
   /* ================= REAL TIME ================= */
   useEffect(() => {
     fetchData();
-
     socket.on("dashboard:update", fetchData);
-
     return () => socket.off("dashboard:update", fetchData);
   }, [fetchData]);
 
@@ -100,7 +99,6 @@ const AdminDashboard = () => {
       },
       { headers }
     );
-
     fetchData();
   };
 
@@ -109,20 +107,13 @@ const AdminDashboard = () => {
     fetchData();
   };
 
-  /* ================= STATS ================= */
   const completionRate =
     stats.total_exchanges > 0
-      ? Math.round(
-          (stats.completed_exchanges / stats.total_exchanges) * 100
-        )
+      ? Math.round((stats.completed_exchanges / stats.total_exchanges) * 100)
       : 0;
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        Loading Admin Dashboard...
-      </div>
-    );
+    return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
   }
 
   return (
@@ -177,8 +168,11 @@ const AdminDashboard = () => {
                   nameKey="status"
                   outerRadius={100}
                 >
-                  {analytics.map((_, i) => (
-                    <Cell key={i} fill="#3b82f6" />
+                  {analytics.map((entry, i) => (
+                    <Cell
+                      key={i}
+                      fill={COLORS[entry.status] || "#94a3b8"}
+                    />
                   ))}
                 </Pie>
                 <Tooltip />
@@ -194,7 +188,14 @@ const AdminDashboard = () => {
                 <XAxis dataKey="status" />
                 <YAxis />
                 <Tooltip />
-                <Bar dataKey="count" />
+                <Bar dataKey="count">
+                  {analytics.map((entry, i) => (
+                    <Cell
+                      key={i}
+                      fill={COLORS[entry.status] || "#94a3b8"}
+                    />
+                  ))}
+                </Bar>
               </BarChart>
             </Chart>
           </Card>
@@ -241,40 +242,27 @@ const AdminDashboard = () => {
           </div>
 
           {users.map((u) => (
-            <div
-              key={u.id}
-              className="flex justify-between py-3 border-b"
-            >
+            <div key={u.id} className="flex justify-between py-3 border-b">
 
-              {/* INFO */}
               <div>
                 <p className="font-semibold">{u.name}</p>
                 <p className="text-sm text-slate-500">{u.email}</p>
-                <p className="text-xs text-slate-400">
-                  {u.role}
-                </p>
+                <p className="text-xs">{u.role}</p>
               </div>
 
-              {/* ACTIONS */}
               <div className="flex gap-2">
 
-                {/* ACTIVATE / DEACTIVATE */}
                 <button
-                  onClick={() =>
-                    toggleStatus(u.id, u.status || "active")
-                  }
+                  onClick={() => toggleStatus(u.id, u.status || "active")}
                   className={`px-3 py-1 text-sm rounded text-white ${
                     u.status === "active"
                       ? "bg-yellow-500"
                       : "bg-green-600"
                   }`}
                 >
-                  {u.status === "active"
-                    ? "Deactivate"
-                    : "Activate"}
+                  {u.status === "active" ? "Deactivate" : "Activate"}
                 </button>
 
-                {/* DELETE */}
                 <button
                   onClick={() => deleteUser(u.id)}
                   className="px-3 py-1 text-sm bg-red-600 text-white rounded"
@@ -287,48 +275,27 @@ const AdminDashboard = () => {
           ))}
         </Card>
 
-        {/* ================= ADD USER MODAL ================= */}
+        {/* ================= MODAL ================= */}
         {showModal && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center">
             <div className="bg-white p-6 rounded w-[400px] space-y-3">
 
               <h2 className="text-xl font-bold">Add User</h2>
 
-              <input
-                className="border p-2 w-full"
-                placeholder="Name"
-                onChange={(e) =>
-                  setNewUser({ ...newUser, name: e.target.value })
-                }
-              />
+              <input className="border p-2 w-full" placeholder="Name"
+                onChange={(e) => setNewUser({ ...newUser, name: e.target.value })} />
 
-              <input
-                className="border p-2 w-full"
-                placeholder="Email"
-                onChange={(e) =>
-                  setNewUser({ ...newUser, email: e.target.value })
-                }
-              />
+              <input className="border p-2 w-full" placeholder="Email"
+                onChange={(e) => setNewUser({ ...newUser, email: e.target.value })} />
 
-              <input
-                className="border p-2 w-full"
-                type="password"
-                placeholder="Password"
-                onChange={(e) =>
-                  setNewUser({ ...newUser, password: e.target.value })
-                }
-              />
+              <input className="border p-2 w-full" type="password" placeholder="Password"
+                onChange={(e) => setNewUser({ ...newUser, password: e.target.value })} />
 
-              <button
-                onClick={createUser}
-                className="bg-green-600 text-white px-3 py-1"
-              >
+              <button onClick={createUser} className="bg-green-600 text-white px-3 py-1">
                 Create
               </button>
 
-              <button onClick={() => setShowModal(false)}>
-                Cancel
-              </button>
+              <button onClick={() => setShowModal(false)}>Cancel</button>
 
             </div>
           </div>
@@ -349,11 +316,7 @@ const Card = ({ title, children }) => (
 );
 
 const Stat = ({ title, value, highlight }) => (
-  <div
-    className={`p-4 rounded shadow ${
-      highlight ? "bg-indigo-600 text-white" : "bg-white"
-    }`}
-  >
+  <div className={`p-4 rounded shadow ${highlight ? "bg-indigo-600 text-white" : "bg-white"}`}>
     <p className="text-sm">{title}</p>
     <p className="text-xl font-bold">{value || 0}</p>
   </div>
