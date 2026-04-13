@@ -42,8 +42,6 @@ export default function Register() {
       navigate("/dashboard");
 
     } catch (err) {
-      console.error("REGISTER ERROR:", err);
-
       const message =
         err.response?.data?.error ||
         err.response?.data?.message ||
@@ -58,61 +56,79 @@ export default function Register() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
-      <div className="bg-white p-8 rounded-xl shadow-md w-full max-w-md">
-        <h2 className="text-2xl font-bold text-primary mb-6 text-center">
-          Create an Account
-        </h2>
-
-        {error && <p className="text-red-600 mb-4 text-center">{error}</p>}
-
-        <form className="space-y-4" onSubmit={handleRegister}>
-          <input
-            type="text"
-            placeholder="Full Name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className="w-full border p-3 rounded-md"
-          />
-          <input
-            type="email"
-            placeholder="Email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="w-full border p-3 rounded-md"
-          />
-          <input
-            type="password"
-            placeholder="Password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="w-full border p-3 rounded-md"
-          />
-          <input
-            type="password"
-            placeholder="Confirm Password"
-            value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
-            className="w-full border p-3 rounded-md"
-          />
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-primary text-white py-3 rounded-md disabled:opacity-50"
-          >
-            {loading ? "Registering..." : "Register"}
-          </button>
-        </form>
-
-        <p className="mt-4 text-center text-sm">
-          Already have an account?{" "}
-          <span
-            className="text-primary cursor-pointer"
-            onClick={() => navigate("/login")}
-          >
-            Login
-          </span>
+    <div className="min-h-screen grid md:grid-cols-2">
+      
+      {/* LEFT SIDE (Branding) */}
+      <div className="hidden md:flex flex-col justify-center bg-primary text-white p-12">
+        <h1 className="text-4xl font-bold mb-4">Join Ex-change</h1>
+        <p className="text-lg opacity-90">
+          Share your skills. Learn from others. Grow together.
         </p>
+      </div>
+
+      {/* RIGHT SIDE (Form) */}
+      <div className="flex items-center justify-center bg-background px-4">
+        <div className="w-full max-w-sm bg-white p-6 rounded-xl shadow-md">
+
+          <h2 className="text-xl font-bold text-primary mb-4 text-center">
+            Create Account
+          </h2>
+
+          {error && (
+            <p className="text-red-600 mb-3 text-center text-sm">
+              {error}
+            </p>
+          )}
+
+          <form className="space-y-3" onSubmit={handleRegister}>
+            <input
+              type="text"
+              placeholder="Full Name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="w-full border p-2.5 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+            />
+            <input
+              type="email"
+              placeholder="Email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full border p-2.5 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+            />
+            <input
+              type="password"
+              placeholder="Password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full border p-2.5 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+            />
+            <input
+              type="password"
+              placeholder="Confirm Password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              className="w-full border p-2.5 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+            />
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full bg-primary text-white py-2.5 rounded-md text-sm hover:opacity-90 disabled:opacity-50"
+            >
+              {loading ? "Registering..." : "Register"}
+            </button>
+          </form>
+
+          <p className="mt-3 text-center text-xs">
+            Already have an account?{" "}
+            <span
+              className="text-primary cursor-pointer font-medium"
+              onClick={() => navigate("/login")}
+            >
+              Login
+            </span>
+          </p>
+        </div>
       </div>
     </div>
   );
